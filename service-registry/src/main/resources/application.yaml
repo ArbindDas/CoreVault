@@ -1,0 +1,22 @@
+spring :
+  application :
+    name : service-registry  # lowercase is preferred
+
+server :
+  port : 8761
+
+eureka :
+  client :
+    register-with-eureka : false  # this service itself is the registry
+    fetch-registry : false        # it does not need to fetch registry
+  server :
+    wait-time-in-ms-when-sync-empty : 0  # optional, faster startup
+
+
+management :
+  endpoints :
+    enabled-by-default :
+      web :
+        exposure :
+          includes : ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:*}
+

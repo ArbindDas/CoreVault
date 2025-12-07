@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: AUTH-SERVICE
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+      show_sql: ${SPRING_JPA_SHOW_SQL:true}
+      format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
+      use_sql_comments: ${SPRING_JPA_PROPERTIES_HIBERNATE_USE_SQL_COMMENTS:true}
+    properties:
+      hibernate:
+        dialect:  org.hibernate.dialect.MySQLDialect  # Use MySQLDialect instead of MySQL8Dialect
+    open-in-view: false
+
+logging:
+  level:
+    root: ${SPRING_LOGGING_LEVEL_ROOT:INFO}
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.jdbc.core: DEBUG
+
+management:
+  endpoints:
+    enabled-by-default: true
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:*}
+
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://service-registry:8761/eureka/
