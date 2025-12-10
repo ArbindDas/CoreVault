@@ -43,3 +43,6 @@ eureka:
   client:
     service-url:
       defaultZone: http://service-registry:8761/eureka/
+
+server:
+  port: 8089
