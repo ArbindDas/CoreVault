@@ -62,10 +62,10 @@ public class JwtFilter extends OncePerRequestFilter {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
                     // Option 2: Extract roles directly from token (faster, no DB hit)
-                    // List<String> roles = jwtUtil.extractRoles(jwt);
-                    // List<SimpleGrantedAuthority> authorities = roles.stream()
-                    //         .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                    //         .toList();
+                     List<String> roles = jwtUtil.extractRoles(jwt);
+                     List<SimpleGrantedAuthority> authorities = roles.stream()
+                             .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                             .toList();
 
                     // Create authentication token
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
@@ -116,12 +116,10 @@ public class JwtFilter extends OncePerRequestFilter {
         String method = request.getMethod();
 
         // Skip JWT filter for these endpoints
-        return path.startsWith("/api/auth/") ||           // All auth endpoints
+        return path.startsWith("/api/v1/auth/**") ||           // All auth endpoints
                 path.startsWith("/api/public/") ||         // Public endpoints
-                path.startsWith("/login/oauth2/") ||       // OAuth2 login
                 path.startsWith("/oauth2/") ||             // OAuth2
                 path.startsWith("/api/health") ||          // Health checks
-                (path.equals("/api/medicines/getMedicines") && method.equals("GET")) || // Public medicine listing
                 path.startsWith("/api/test/") ||           // Test endpoints
                 path.startsWith("/api/files/") ||          // File endpoints
                 path.startsWith("/check/") ||              // Check endpoints

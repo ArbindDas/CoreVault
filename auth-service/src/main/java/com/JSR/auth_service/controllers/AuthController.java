@@ -1,0 +1,230 @@
+package com.JSR.auth_service.controllers;
+
+import com.JSR.auth_service.dto.*;
+import com.JSR.auth_service.services.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/auth")
+@Slf4j
+@Tag(name = "Authentication", description = "Authentication and authorization endpoints")
+@CrossOrigin(origins = "*") // Adjust as needed for your CORS policy
+
+public class AuthController {
+
+
+    private static final String AUTH_HEADER = "Authorization";
+    private static final  String BEARER_PREFIX ="BEARER";
+
+
+    private final AuthService authService;
+
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
+
+
+
+
+    // Helper method to get client IP
+    private String getClientIp(HttpServletRequest request) {
+        // Check for X-Forwarded-For header (common when behind proxy/load balancer)
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader != null && !xfHeader.isEmpty()) {
+            // X-Forwarded-For can contain multiple IPs, the first one is the original client
+            return xfHeader.split(",")[0].trim();
+        }
+
+        // Fallback to remote address
+        return request.getRemoteAddr();
+    }
+
+
+
+    @Operation(
+            summary = "Register new user",
+            description = "creates a new user account with provided details"
+    )
+
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "User Created Successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = SignupRequest.class)
+                    )
+            ),
+
+            @ApiResponse(
+
+                    responseCode = "400",
+                    description = "Invalid input data",
+                    content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = SignupRequest.class))
+            ),
+
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "User Already exists",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = SignupRequest.class)
+                    )
+            ),
+
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "internal server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = SignupRequest.class)
+                    )
+
+            )
+    })
+    @PostMapping(
+            value = "/signup",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+
+
+    public ResponseEntity<ApiResponseWrapper<SignupResponse>> signup(
+            @Parameter(description = "User registration details ", required = true)
+            @Valid @RequestBody SignupRequest request,
+            HttpServletRequest httpRequest){
+
+        log.info("Signup request received for email: {}", request.email());
+
+
+        try {
+            long startTime = System.currentTimeMillis();
+            SignupResponse signupResponse = authService.signup(request);
+
+            long processingTime = System.currentTimeMillis() - startTime;
+
+
+            log.info("User registered successfully: {} (took {} ms)",
+                    request.email(), processingTime);
+            ApiResponseWrapper<SignupResponse> responseWrapper = ApiResponseWrapper.success(
+                    signupResponse,
+                    "User Registered successfully",
+                    HttpStatus.CREATED.value()
+            );
+
+            return ResponseEntity
+                    .status(HttpStatus.CREATED)
+                    .header("X-Processing-Time", String.valueOf(processingTime))
+                    .body(responseWrapper);
+
+        }catch (Exception e){
+            log.error("Signup failed for email: {}, error: {}", request.email(), e.getMessage(), e);
+            throw e; // Let GlobalExceptionHandler handle it
+        }
+    }
+
+
+
+
+    @Operation(
+            summary = "User Login",
+            description = "Authenticate user and returns JWT token"
+    )
+    @ApiResponses(value = {
+
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Login successful",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = LoginResponse.class)
+                    )
+            ),
+
+
+            @ApiResponse(
+
+                    responseCode = "400",
+                    description = "Invalid credentials or input data",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = LoginResponse.class)
+                    )
+            ),
+
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication Failed",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = LoginResponse.class)
+                    )
+            ),
+
+            @ApiResponse(
+                    responseCode = "423",
+                    description = "Account locked",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Internal server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+
+    @PostMapping(value = "/signin",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+
+    )
+    public ResponseEntity<ApiResponseWrapper<LoginResponse>>signin(
+            @Parameter(description = "User login credentials", required = true)
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest
+    ){
+        String clientIp = getClientIp(httpRequest);
+        log.info("Login attempt from ip {} for email :{}" , clientIp , request.email());
+
+        try {
+            Long startTime = System.currentTimeMillis();
+            LoginResponse loginResponse = authService.login(request);
+            Long processingTime = System.currentTimeMillis() - startTime;
+
+            // Log success with JWT
+            log.info("Successfully login for user {} from ip {} (took {}ms). JWT: {}",
+                    request.email(), clientIp, processingTime, loginResponse.token());
+            ApiResponseWrapper <LoginResponse> responseWrapper =  ApiResponseWrapper.success(
+                    loginResponse,
+                    "Login successful",
+                    HttpStatus.OK.value()
+            );
+
+            return ResponseEntity.ok()
+                    .header("X-Processing-Time", String.valueOf(processingTime))
+                    .header("X-Auth-Token", loginResponse.token())
+                    .header("X-Auth-Token-Type", loginResponse.tokenType())
+                    .body(responseWrapper);
+
+        }catch (Exception e){
+            log.warn("Failed login attempt for email: {} from IP: {}, error: {}",
+                    request.email(), clientIp, e.getMessage());
+            throw e; // Let GlobalExceptionHandler handle it
+        }
+
+
+    }
+
+}

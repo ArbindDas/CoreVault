@@ -5,6 +5,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -60,17 +61,25 @@ public class Users {
     }
 
 
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"),
             uniqueConstraints = {
-                    @UniqueConstraint(columnNames =  {"user_id ", "role_id"})
+                    @UniqueConstraint(columnNames =  {"user_id", "role_id"})
             }
     )
     private Set<Roles>roles = new HashSet<>();
 
+
+
+    // Helper method to get role names
+    public Set<String> getRoleNames() {
+        return roles.stream()
+                .map(Roles::getName)
+                .collect(Collectors.toSet());
+    }
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<RefreshTokens>refreshTokens = new HashSet<>();

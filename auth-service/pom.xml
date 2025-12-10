@@ -88,6 +88,21 @@
 
 
         <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+<!--        ``` :contentReference[oaicite:3]{index=3}-->
+
+<!--        This version works with Spring Boot 4 (and Jakarta‑EE 9) and will provide the Swagger UI plus OpenAPI docs support out-of-the-box.-->
+
+<!--        If you like — I can also show you a **complete `pom.xml` snippet** for Spring Boot 4 + springdoc‑openapi + JWT security (matching your auth‑service), so you can copy/paste.-->
+<!--        ::contentReference[oaicite:4]{index=4}-->
+
+
+
+
+        <dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>

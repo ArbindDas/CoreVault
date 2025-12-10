@@ -2,6 +2,7 @@ package com.JSR.auth_service.filters;
 
 import com.JSR.auth_service.dto.LoginRequest;
 import com.JSR.auth_service.dto.JwtResponse;
+import com.JSR.auth_service.entities.Roles;
 import com.JSR.auth_service.utils.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -19,6 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
@@ -30,7 +32,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     public JwtAuthenticationFilter(AuthenticationManager authenticationManager, JwtUtil jwtUtil) {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
-        setFilterProcessesUrl("/api/auth/signin");
+        setFilterProcessesUrl("/api/v1/auth/**");
     }
 
     @Override
@@ -59,8 +61,17 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
                 .map(authority -> authority.replace("ROLE_", "")) // Remove ROLE_ prefix if present
                 .collect(Collectors.toList());
 
-        // Generate token with username and roles
-        String token = jwtUtil.generateToken(username, roles);
+        // Convert List<String> to Set<Roles>
+        Set<Roles> rolesSet = roles.stream()
+                .map(roleName -> {
+                    Roles role = new Roles();
+                    role.setName(roleName);
+                    return role;
+                })
+                .collect(Collectors.toSet());
+
+        // Generate token with username and rolesSet
+        String token = jwtUtil.generateToken(username, rolesSet);
 
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
@@ -76,7 +87,6 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         response.getWriter().write(objectMapper.writeValueAsString(jwtResponse));
         response.addHeader("Authorization", "Bearer " + token);
     }
-
     @Override
     protected void unsuccessfulAuthentication(HttpServletRequest request,
                                               HttpServletResponse response,

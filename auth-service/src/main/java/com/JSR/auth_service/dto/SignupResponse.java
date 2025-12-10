@@ -2,7 +2,7 @@ package com.JSR.auth_service.dto;
 
 import java.time.LocalDateTime;
 
-public record UserResponse(
+public record SignupResponse(
         Long id,
         String fullName,
         String email,
