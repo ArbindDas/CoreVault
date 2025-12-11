@@ -11,6 +11,7 @@ import com.JSR.auth_service.entities.Users;
 import com.JSR.auth_service.repository.RolesRepository;
 import com.JSR.auth_service.repository.UsersRepository;
 import com.JSR.auth_service.services.AuthService;
+import com.JSR.auth_service.services.TokenBlacklistService;
 import com.JSR.auth_service.utils.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,22 +29,31 @@ import java.util.stream.Collectors;
 public class AuthServiceImpl implements AuthService{
 
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private RolesRepository rolesRepository;
+    private final PasswordEncoder passwordEncoder;
 
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final RolesRepository rolesRepository;
+
+
+    private  final JwtUtil jwtUtil;
 
     private final UsersRepository usersRepository;
 
 
+    private final TokenBlacklistService tokenBlacklistService; // We'll create this
+
     @Autowired
-    public AuthServiceImpl(UsersRepository usersRepository) {
+    public AuthServiceImpl(PasswordEncoder passwordEncoder,
+                           RolesRepository rolesRepository,
+                           JwtUtil jwtUtil,
+                           UsersRepository usersRepository,
+                           TokenBlacklistService tokenBlacklistService) {
+        this.passwordEncoder = passwordEncoder;
+        this.rolesRepository = rolesRepository;
+        this.jwtUtil = jwtUtil;
         this.usersRepository = usersRepository;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
@@ -118,5 +128,34 @@ public class AuthServiceImpl implements AuthService{
 
 
     }
+
+    @Override
+    public void logout(String token, boolean logoutAllDevices) {
+
+        try {
+
+            if (!jwtUtil.isTokenValid(token)){
+                throw new BadCredentialsException("Invalid token");
+            }
+
+            // Extract username from token
+            String username = jwtUtil.extractEmail(token);
+
+
+            if (logoutAllDevices){
+                // logout from all devices
+                tokenBlacklistService.blacklistAllUserTokens(username);
+                log.info("User {} logged out from all devices ", username);
+            }else {
+                // Logout only this token
+
+                tokenBlacklistService.blacklistToken(token);
+                log.info("User{} logged out from current  devices ", username);
+            }
+        } catch (Exception e) {
+            log.error("Logout failed: {}", e.getMessage());
+            throw new RuntimeException("Logout failed: " + e.getMessage());
+        }
+        }
 
 }

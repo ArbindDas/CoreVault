@@ -1,12 +1,16 @@
-
 package com.JSR.auth_service.utils;
+
 import com.JSR.auth_service.entities.Roles;
+import com.JSR.auth_service.services.TokenBlacklistService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -15,7 +19,17 @@ import java.util.stream.Collectors;
 @Component
 public class JwtUtil {
 
+
+
+    private TokenBlacklistService tokenBlacklistService;
+    // Use setter injection
+    @Autowired
+    public void setTokenBlacklistService(@Lazy TokenBlacklistService tokenBlacklistService) {
+        this.tokenBlacklistService = tokenBlacklistService;
+    }
+
     private static final long EXPIRATION = 1000 * 60 * 60; // 1 hour
+
 
     @Value("${AUTH_SECRET_KEY}")
     private String secret;
@@ -23,7 +37,7 @@ public class JwtUtil {
     private SecretKey key;
 
     @PostConstruct
-    public void init() {
+    public void init( ) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("Secret key must be at least 32 characters long");
         }
@@ -37,13 +51,28 @@ public class JwtUtil {
                 .map(Roles::getName)  // Assuming Roles has getName() method
                 .collect(Collectors.toSet());
 
-        return Jwts.builder()
+//        return Jwts.builder()
+//                .subject(email)
+//                .claim("roles", new ArrayList<>(roleNames))  // Store as List<String>
+//                .issuedAt(new Date())
+//                .expiration(new Date(System.currentTimeMillis() + EXPIRATION))
+//                .signWith(key, Jwts.SIG.HS256)
+//                .compact();
+
+        String token = Jwts.builder()
                 .subject(email)
-                .claim("roles", new ArrayList<>(roleNames))  // Store as List<String>
+                .claim("roles", new ArrayList<>(roleNames))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + EXPIRATION))
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
+
+
+        // store token as active
+        tokenBlacklistService.storeActiveToken(email, token);
+
+
+        return token;
     }
 
 
@@ -114,11 +143,30 @@ public class JwtUtil {
     // Validate token without email
     public boolean isTokenValid(String token) {
         try {
+            // Check if token is blacklisted
+            if (tokenBlacklistService.isTokenBlacklisted(token)) {
+                return false;
+            }
+
             return !isTokenExpired(token);
         } catch (Exception e) {
             return false;
         }
     }
+
+
+
+    public Date extractExpiration(String token){
+        return getClaims(token).getExpiration();
+    }
+
+    // ✅ ADDED: Get remaining validity in milliseconds
+    public long getRemainingValidityMs(String token) {
+        Date expiration = extractExpiration(token);
+        return expiration.getTime() - System.currentTimeMillis();
+    }
+
+
 
     // Get expiration date
     public Date getExpirationDate(String token) {

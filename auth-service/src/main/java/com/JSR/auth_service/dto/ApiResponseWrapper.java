@@ -21,6 +21,15 @@ public class ApiResponseWrapper<T> {
     @Schema(description = "Response data")
     private T data;
 
+
+//    📦 Shipping Box (ApiResponseWrapper<T>)
+//├── 📋 Label (metadata: message, status, timestamp)
+//└── 🎁 Contents (T data)
+//    ├── If T=LoginResponse → Contains JWT token
+//    ├── If T=SignupResponse → Contains user ID
+//    ├── If T=UserDto → Contains user profile
+//    └── If T=List<Product> → Contains products
+
     @Schema(description = "Response message", example = "Operation successful")
     private String message;
 
@@ -40,7 +49,7 @@ public class ApiResponseWrapper<T> {
 
     public static <T> ApiResponseWrapper<T>success(T data  , String message , int status){
         return ApiResponseWrapper.<T>builder()
-                .data(data)
+                .data(data) // ← Your LoginResponse object goes here!
                 .message(message)
                 .status(status)
                 .timestamp(LocalDateTime.now())

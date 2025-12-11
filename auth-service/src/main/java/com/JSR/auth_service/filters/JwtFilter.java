@@ -1,5 +1,6 @@
 package com.JSR.auth_service.filters;
 
+import com.JSR.auth_service.services.TokenBlacklistService;
 import com.JSR.auth_service.utils.JwtUtil;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
@@ -10,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -44,6 +46,7 @@ import java.util.List;
 //Decides who gets in and what they can access
 
 
+
 // Without JwtFilter:
 // todo -> Request → Controller → (No authentication check)
 
@@ -56,6 +59,9 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -75,6 +81,14 @@ public class JwtFilter extends OncePerRequestFilter {
         jwt = authHeader.substring(7);
 
         try {
+
+            // Check if token is blacklisted
+            if (tokenBlacklistService.isTokenBlacklisted(jwt)) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"error\": \"Token has been invalidated\"}");
+                return;
+            }
+
             // Extract username from JWT token
             username = jwtUtil.extractEmail(jwt);
 

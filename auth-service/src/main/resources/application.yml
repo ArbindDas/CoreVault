@@ -21,8 +21,23 @@ spring:
       use_sql_comments: ${SPRING_JPA_PROPERTIES_HIBERNATE_USE_SQL_COMMENTS:true}
     properties:
       hibernate:
-        dialect:  org.hibernate.dialect.MySQLDialect  # Use MySQLDialect instead of MySQL8Dialect
+        dialect: org.hibernate.dialect.MySQLDialect
     open-in-view: false
+
+
+
+  redis:
+    host: ${REDIS_HOST:redis}  # Changed from 'localhost' to 'redis' for Docker
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 0
+    timeout: 2000ms  # Add timeout here
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
 
 logging:
   level:
@@ -30,6 +45,7 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
     org.springframework.jdbc.core: DEBUG
+    org.springframework.data.redis: DEBUG  # Add this for Redis debugging
 
 management:
   endpoints:
@@ -37,7 +53,6 @@ management:
     web:
       exposure:
         include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:*}
-
 
 eureka:
   client:

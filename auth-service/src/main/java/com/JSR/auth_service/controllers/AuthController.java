@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Authentication", description = "Authentication and authorization endpoints")
 @CrossOrigin(
         origins = "http://localhost:5173",
-        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT ,  RequestMethod.OPTIONS},
+        methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.OPTIONS },
         allowCredentials = "true",
         allowedHeaders = "*"
 )
@@ -32,7 +33,7 @@ public class AuthController {
 
 
     private static final String AUTH_HEADER = "Authorization";
-    private static final  String BEARER_PREFIX ="BEARER";
+    private static final String BEARER_PREFIX = "BEARER";
 
 
     private final AuthService authService;
@@ -40,8 +41,6 @@ public class AuthController {
     public AuthController(AuthService authService) {
         this.authService = authService;
     }
-
-
 
 
     // Helper method to get client IP
@@ -56,7 +55,6 @@ public class AuthController {
         // Fallback to remote address
         return request.getRemoteAddr();
     }
-
 
 
     @Operation(
@@ -78,7 +76,7 @@ public class AuthController {
                     responseCode = "400",
                     description = "Invalid input data",
                     content = @Content(mediaType = "application/json",
-                    schema = @Schema(implementation = SignupRequest.class))
+                            schema = @Schema(implementation = SignupRequest.class))
             ),
 
             @ApiResponse(
@@ -98,7 +96,7 @@ public class AuthController {
 
             )
     })
-         @PostMapping(
+    @PostMapping(
             value = "/signup",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
@@ -107,7 +105,7 @@ public class AuthController {
     public ResponseEntity<ApiResponseWrapper<SignupResponse>> signup(
             @Parameter(description = "User registration details ", required = true)
             @Valid @RequestBody SignupRequest request,
-            HttpServletRequest httpRequest){
+            HttpServletRequest httpRequest) {
 
         log.info("Signup request received for email: {}", request.email());
 
@@ -130,12 +128,11 @@ public class AuthController {
                     .header("X-Processing-Time", String.valueOf(processingTime))
                     .body(responseWrapper);
 
-        }catch (Exception e){
+        } catch (Exception e) {
             log.error("Signup failed for email: {}, error: {}", request.email(), e.getMessage(), e);
             throw e;
         }
     }
-
 
 
     @Operation(
@@ -143,7 +140,6 @@ public class AuthController {
             description = "Authenticate user and returns JWT token"
     )
     @ApiResponses(value = {
-
             @ApiResponse(
                     responseCode = "200",
                     description = "Login successful",
@@ -154,7 +150,6 @@ public class AuthController {
 
 
             @ApiResponse(
-
                     responseCode = "400",
                     description = "Invalid credentials or input data",
                     content = @Content(mediaType = "application/json",
@@ -184,18 +179,18 @@ public class AuthController {
             )
     })
 
- @PostMapping(value = "/signin",
+    @PostMapping(value = "/signin",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
 
     )
-    public ResponseEntity<ApiResponseWrapper<LoginResponse>>signin(
+    public ResponseEntity<ApiResponseWrapper<LoginResponse>> signin(
             @Parameter(description = "User login credentials", required = true)
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest
-    ){
+    ) {
         String clientIp = getClientIp(httpRequest);
-        log.info("Login attempt from ip {} for email :{}" , clientIp , request.email());
+        log.info("Login attempt from ip {} for email :{}", clientIp, request.email());
 
         try {
             Long startTime = System.currentTimeMillis();
@@ -206,8 +201,8 @@ public class AuthController {
             log.info("Successfully login for user {} from ip {} (took {}ms). JWT: {}",
                     request.email(), clientIp, processingTime, loginResponse.token());
 
-            ApiResponseWrapper <LoginResponse> responseWrapper =  ApiResponseWrapper.success(
-                    loginResponse,  // This will now be included in the response
+            ApiResponseWrapper<LoginResponse> responseWrapper = ApiResponseWrapper.success(
+                    loginResponse,   // ← This LoginResponse becomes the 'data' field
                     "Login successful",
                     HttpStatus.OK.value()
             );
@@ -219,9 +214,97 @@ public class AuthController {
                     .header("Access-Control-Expose-Headers", "X-Auth-Token, X-Auth-Token-Type, X-Processing-Time") // Important for CORS
                     .body(responseWrapper);
 
-        }catch (Exception e){
+        } catch (Exception e) {
             log.warn("Failed login attempt for email: {} from IP: {}, error: {}",
                     request.email(), clientIp, e.getMessage());
+            throw e;
+        }
+    }
+
+
+    @Operation(
+            summary = "User Logout",
+            description = "Invalidates the current user's JWT token"
+    )
+
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Logout successful",
+                    content = @Content(mediaType = "application/json")
+            ),
+
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid Token or missing Authorization header",
+                    content = @Content(mediaType = "application/json")
+            ),
+
+
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - Invalid or Expired token",
+                    content = @Content(mediaType = "application/json")
+            ),
+
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Internal server error",
+                    content = @Content(mediaType = "application/json")
+            )
+
+    })
+    @PostMapping(
+            value = "/logout",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponseWrapper<Void>> logout(
+
+            HttpServletRequest httpRequest,
+            @Parameter(description = "Logout from all devices ", required = false)
+            @RequestParam(value = "allDevices", defaultValue = "false") boolean logoutAllDevices
+    ){
+
+
+        String clientIp = getClientIp(httpRequest);
+        String authorizeHeader = httpRequest.getHeader(AUTH_HEADER);
+
+
+        log.info("Logout request from ip:{} , logoutAllDevices:{} ", clientIp , logoutAllDevices);
+
+
+        try {
+
+            Long startTime = System.currentTimeMillis();
+            if (authorizeHeader==null || !authorizeHeader.startsWith(BEARER_PREFIX)){
+                throw  new BadCredentialsException("Missing or invalid Authorization header");
+            }
+
+
+            String token = authorizeHeader.substring(BEARER_PREFIX.length()).trim();
+
+            // calls service to handle logout
+
+            authService.logout(token , logoutAllDevices);
+
+            Long processingTime = System.currentTimeMillis()-startTime;
+            log.info("User logged out successful from ip : {} (took{}ms)", clientIp ,processingTime);
+
+
+            ApiResponseWrapper<Void> responseWrapper  = ApiResponseWrapper.success(
+                    null, // No data for logout
+                    logoutAllDevices
+                    ? "Logged out from all devices successfully"
+                    : "Logged out successfully",
+                    HttpStatus.OK.value()
+            );
+
+            return  ResponseEntity.ok()
+                    .header("X-Processing-Time", String.valueOf(processingTime))
+                    .body(responseWrapper);
+        }catch (Exception e){
+
+            log.warn("Logout failed from IP: {}, error: {}", clientIp, e.getMessage());
             throw e;
         }
     }
