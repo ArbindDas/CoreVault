@@ -5,15 +5,18 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/test")
 public class TestController {
 
-
-    @GetMapping()
-    public String test(){
-        log.info("the test endpoint is working,......");
-        return "test endpoint is working......";
+    @GetMapping("/message")
+    public Map<String , String>getJaiShreeRamMessage(){
+        Map<String  , String>response = new HashMap<>();
+        response.put("Message", "Jai Shree Ram");
+        return response;
     }
 }

@@ -1,5 +1,6 @@
 package com.JSR.auth_service.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -37,6 +38,7 @@ public class Roles {
 
 
     @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
+    @JsonIgnore // This prevents serialization of the users collection
     private Set<Users>users =  new HashSet<>();
 
 

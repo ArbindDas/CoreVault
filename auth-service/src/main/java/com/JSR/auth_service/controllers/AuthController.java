@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,12 +18,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
-@RestController
-@RequestMapping("/api/v1/auth")
 @Slf4j
 @Tag(name = "Authentication", description = "Authentication and authorization endpoints")
-@CrossOrigin(origins = "*") // Adjust as needed for your CORS policy
-
+@CrossOrigin(
+        origins = "http://localhost:5173",
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT ,  RequestMethod.OPTIONS},
+        allowCredentials = "true",
+        allowedHeaders = "*"
+)
+@RestController
+@RequestMapping("/api/v1/auth")
 public class AuthController {
 
 
@@ -95,12 +98,11 @@ public class AuthController {
 
             )
     })
-    @PostMapping(
+         @PostMapping(
             value = "/signup",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-
 
     public ResponseEntity<ApiResponseWrapper<SignupResponse>> signup(
             @Parameter(description = "User registration details ", required = true)
@@ -109,18 +111,16 @@ public class AuthController {
 
         log.info("Signup request received for email: {}", request.email());
 
-
         try {
             long startTime = System.currentTimeMillis();
             SignupResponse signupResponse = authService.signup(request);
 
             long processingTime = System.currentTimeMillis() - startTime;
 
-
             log.info("User registered successfully: {} (took {} ms)",
                     request.email(), processingTime);
             ApiResponseWrapper<SignupResponse> responseWrapper = ApiResponseWrapper.success(
-                    signupResponse,
+                    signupResponse,  // Include the response data
                     "User Registered successfully",
                     HttpStatus.CREATED.value()
             );
@@ -132,10 +132,9 @@ public class AuthController {
 
         }catch (Exception e){
             log.error("Signup failed for email: {}, error: {}", request.email(), e.getMessage(), e);
-            throw e; // Let GlobalExceptionHandler handle it
+            throw e;
         }
     }
-
 
 
 
@@ -185,7 +184,7 @@ public class AuthController {
             )
     })
 
-    @PostMapping(value = "/signin",
+ @PostMapping(value = "/signin",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
 
@@ -206,8 +205,9 @@ public class AuthController {
             // Log success with JWT
             log.info("Successfully login for user {} from ip {} (took {}ms). JWT: {}",
                     request.email(), clientIp, processingTime, loginResponse.token());
+
             ApiResponseWrapper <LoginResponse> responseWrapper =  ApiResponseWrapper.success(
-                    loginResponse,
+                    loginResponse,  // This will now be included in the response
                     "Login successful",
                     HttpStatus.OK.value()
             );
@@ -216,15 +216,14 @@ public class AuthController {
                     .header("X-Processing-Time", String.valueOf(processingTime))
                     .header("X-Auth-Token", loginResponse.token())
                     .header("X-Auth-Token-Type", loginResponse.tokenType())
+                    .header("Access-Control-Expose-Headers", "X-Auth-Token, X-Auth-Token-Type, X-Processing-Time") // Important for CORS
                     .body(responseWrapper);
 
         }catch (Exception e){
             log.warn("Failed login attempt for email: {} from IP: {}, error: {}",
                     request.email(), clientIp, e.getMessage());
-            throw e; // Let GlobalExceptionHandler handle it
+            throw e;
         }
-
-
     }
 
 }

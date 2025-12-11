@@ -111,7 +111,9 @@ public class AuthServiceImpl implements AuthService{
                 users.getId(),
                 users.getFullName(),
                 users.getEmail(),
-                users.getRoles()
+                users.getRoles().stream()
+                        .map(Roles::getName)
+                        .collect(Collectors.toSet())
         );
 
 

@@ -40,7 +40,7 @@ public class ApiResponseWrapper<T> {
 
     public static <T> ApiResponseWrapper<T>success(T data  , String message , int status){
         return ApiResponseWrapper.<T>builder()
-                .data(null)
+                .data(data)
                 .message(message)
                 .status(status)
                 .timestamp(LocalDateTime.now())

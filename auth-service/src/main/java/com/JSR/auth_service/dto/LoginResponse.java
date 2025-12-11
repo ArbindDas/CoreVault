@@ -1,5 +1,7 @@
 package com.JSR.auth_service.dto;
 
+import java.util.Set;
+
 public record LoginResponse(
 
         String token,
@@ -7,7 +9,7 @@ public record LoginResponse(
         Long userId,
         String fullName,
         String email,
-        java.util.Set<com.JSR.auth_service.entities.Roles> roles
+        Set<String> roles // Use role names instead of Role entities
 )
 {
 }

@@ -65,7 +65,7 @@ public class SpringSecurity {
                         .requestMatchers(
                                 "/api/test",
                                 "/api/v1/auth/**",
-                                "/api/test",
+                                "/api/test/**",
                                 "/api/health",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
