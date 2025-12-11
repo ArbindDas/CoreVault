@@ -22,7 +22,33 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+// Importance: Validates EVERY incoming request
 
+// What happens for each request:
+//1. todo ->  Checks Authorization header exists
+//2.todo ->  Validates JWT signature (prevents tampering)
+//3. todo  ->  Checks token expiration
+//4. todo ->  Extracts user identity and roles
+//5.  todo -> Sets SecurityContext for Spring Security
+
+
+// Main Purpose of the JwtFilter Class
+//Core Mission: Authentication Gatekeeper
+//The JwtFilter serves as the authentication checkpoint for your entire Spring Boot application.
+//Think of it as the security guard at the entrance of a building who:
+//
+//Checks everyone's ID (JWT token)
+//
+//Verifies it's valid and not expired
+//
+//Decides who gets in and what they can access
+
+
+// Without JwtFilter:
+// todo -> Request → Controller → (No authentication check)
+
+// With JwtFilter:
+// todo ->  Request → JwtFilter (validates token) → Controller (knows who made request)
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -116,14 +142,9 @@ public class JwtFilter extends OncePerRequestFilter {
         String method = request.getMethod();
 
         // Skip JWT filter for these endpoints
-        return path.startsWith("/api/v1/auth/**") ||           // All auth endpoints
+        return path.startsWith("/api/v1/auth/") ||           // All auth endpoints
                 path.startsWith("/api/public/") ||         // Public endpoints
-                path.startsWith("/oauth2/") ||             // OAuth2
-                path.startsWith("/api/health") ||          // Health checks
-                path.startsWith("/api/test/") ||           // Test endpoints
-                path.startsWith("/api/files/") ||          // File endpoints
-                path.startsWith("/check/") ||              // Check endpoints
-                path.startsWith("/api/ollama/");           // Ollama endpoints
+                path.startsWith("/api/test/");
     }
 
     /**

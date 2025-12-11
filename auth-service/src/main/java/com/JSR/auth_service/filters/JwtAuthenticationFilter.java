@@ -18,6 +18,20 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+//Main Purpose of JwtAuthenticationFilter Class
+//        Core Mission: Login Handler / Token Issuer
+//        The JwtAuthenticationFilter serves as the authentication endpoint handler -
+//        it's specifically designed to handle login requests and issue JWT tokens.
+//        Think of it as the passport office or ID card issuing authority:
+//
+//        Accepts login credentials (email/password)
+//
+//        Validates them against your user database
+//
+//        Issues a JWT token if credentials are correct
+//
+//        Returns the token to the client
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
