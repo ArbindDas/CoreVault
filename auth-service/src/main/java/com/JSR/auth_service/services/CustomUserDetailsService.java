@@ -14,7 +14,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
-
+//
+// todo ->  Your CustomUserDetailsService is the bridge between your database and Spring Security,
+// todo ->  providing Spring Security everything it needs (username, password, roles) to authenticate the user.
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
