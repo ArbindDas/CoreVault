@@ -1,3 +1,9 @@
 spring:
   application:
     name: USER-SERVICE
+
+
+
+server:
+  port:
+    8090

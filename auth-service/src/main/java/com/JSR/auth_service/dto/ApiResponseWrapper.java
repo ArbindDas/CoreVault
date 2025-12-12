@@ -68,4 +68,9 @@ public class ApiResponseWrapper<T> {
                 .version("v1")
                 .build();
     }
+
+    // Add this overloaded version without errorCode if needed
+    public static <T> ApiResponseWrapper<T> error(String message, int status) {
+        return error(message, status, null);
+    }
 }

@@ -81,6 +81,7 @@ public class SpringSecurity {
 
                         // Authenticated endpoints (any logged-in user)
                         .requestMatchers("/api/users/getAllUsers").authenticated()
+                        .requestMatchers("/api/v1/auth/logout").authenticated()
 
                         // Final rule: everything else needs authentication
                         .anyRequest().authenticated()

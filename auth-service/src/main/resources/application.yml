@@ -27,16 +27,17 @@ spring:
 
 
   redis:
-    host: ${REDIS_HOST:redis}  # Changed from 'localhost' to 'redis' for Docker
+    host: ${REDIS_HOST:auth-redis}
     port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD:}
-    database: 0
-    timeout: 2000ms  # Add timeout here
+    timeout: 2000ms
     lettuce:
       pool:
         max-active: 8
         max-idle: 8
         min-idle: 0
+        max-wait: -1ms
+      shutdown-timeout: 100ms
+    connect-timeout: 2000ms
 
 
 logging:

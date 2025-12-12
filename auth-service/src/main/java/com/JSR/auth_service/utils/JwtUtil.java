@@ -19,15 +19,6 @@ import java.util.stream.Collectors;
 @Component
 public class JwtUtil {
 
-
-
-    private TokenBlacklistService tokenBlacklistService;
-    // Use setter injection
-    @Autowired
-    public void setTokenBlacklistService(@Lazy TokenBlacklistService tokenBlacklistService) {
-        this.tokenBlacklistService = tokenBlacklistService;
-    }
-
     private static final long EXPIRATION = 1000 * 60 * 60; // 1 hour
 
 
@@ -51,14 +42,6 @@ public class JwtUtil {
                 .map(Roles::getName)  // Assuming Roles has getName() method
                 .collect(Collectors.toSet());
 
-//        return Jwts.builder()
-//                .subject(email)
-//                .claim("roles", new ArrayList<>(roleNames))  // Store as List<String>
-//                .issuedAt(new Date())
-//                .expiration(new Date(System.currentTimeMillis() + EXPIRATION))
-//                .signWith(key, Jwts.SIG.HS256)
-//                .compact();
-
         String token = Jwts.builder()
                 .subject(email)
                 .claim("roles", new ArrayList<>(roleNames))
@@ -66,11 +49,6 @@ public class JwtUtil {
                 .expiration(new Date(System.currentTimeMillis() + EXPIRATION))
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
-
-
-        // store token as active
-        tokenBlacklistService.storeActiveToken(email, token);
-
 
         return token;
     }
@@ -121,7 +99,7 @@ public class JwtUtil {
     }
 
     // Check token expiration
-    private boolean isTokenExpired(String token) {
+    public boolean isTokenExpired(String token) {
         return getClaims(token).getExpiration().before(new Date());
     }
 
@@ -143,11 +121,6 @@ public class JwtUtil {
     // Validate token without email
     public boolean isTokenValid(String token) {
         try {
-            // Check if token is blacklisted
-            if (tokenBlacklistService.isTokenBlacklisted(token)) {
-                return false;
-            }
-
             return !isTokenExpired(token);
         } catch (Exception e) {
             return false;

@@ -108,6 +108,10 @@ public class AuthServiceImpl implements AuthService{
 
         String token = jwtUtil.generateToken(users.getEmail(), users.getRoles());
 
+
+        // ✅ Store token AFTER generation
+        tokenBlacklistService.storeActiveToken(users.getEmail(), token);
+
         log.info("the generated jwt token is {}" , token);
         log.info("User {} logged in with roles {}. JWT: {}",
                 users.getEmail(),

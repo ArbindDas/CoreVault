@@ -52,6 +52,7 @@ import java.util.List;
 
 // With JwtFilter:
 // todo ->  Request → JwtFilter (validates token) → Controller (knows who made request)
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -158,7 +159,8 @@ public class JwtFilter extends OncePerRequestFilter {
         // Skip JWT filter for these endpoints
         return path.startsWith("/api/v1/auth/") ||           // All auth endpoints
                 path.startsWith("/api/public/") ||         // Public endpoints
-                path.startsWith("/api/test/");
+                path.startsWith("/api/test/") ||
+                path.startsWith("/api/v1/auth/logout") && method.equals("POSt");
     }
 
     /**

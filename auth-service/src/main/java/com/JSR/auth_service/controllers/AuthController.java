@@ -19,6 +19,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
+
 @Slf4j
 @Tag(name = "Authentication", description = "Authentication and authorization endpoints")
 @CrossOrigin(
@@ -31,9 +33,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-
+    // Use THESE constants (correct format)
     private static final String AUTH_HEADER = "Authorization";
-    private static final String BEARER_PREFIX = "BEARER";
+    private static final String BEARER_PREFIX = "Bearer ";  // Lowercase 'b' with space!
 
 
     private final AuthService authService;
@@ -254,59 +256,90 @@ public class AuthController {
             )
 
     })
+
     @PostMapping(
             value = "/logout",
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<ApiResponseWrapper<Void>> logout(
-
             HttpServletRequest httpRequest,
             @Parameter(description = "Logout from all devices ", required = false)
             @RequestParam(value = "allDevices", defaultValue = "false") boolean logoutAllDevices
-    ){
-
-
+    ) {
         String clientIp = getClientIp(httpRequest);
+
+        // DON'T redefine these here - use the class-level constants
         String authorizeHeader = httpRequest.getHeader(AUTH_HEADER);
 
-
-        log.info("Logout request from ip:{} , logoutAllDevices:{} ", clientIp , logoutAllDevices);
-
+        log.info("Logout request from ip: {}, logoutAllDevices: {}", clientIp, logoutAllDevices);
+        log.info("Authorization header value: {}", authorizeHeader);
 
         try {
-
             Long startTime = System.currentTimeMillis();
-            if (authorizeHeader==null || !authorizeHeader.startsWith(BEARER_PREFIX)){
-                throw  new BadCredentialsException("Missing or invalid Authorization header");
+
+            // Check 1: Is header null?
+            if (authorizeHeader == null) {
+                log.error("Authorization header is NULL");
+                throw new BadCredentialsException("Missing Authorization header");
             }
 
+            // Check 2: Does it start with Bearer? (case-sensitive!)
+            if (!authorizeHeader.startsWith(BEARER_PREFIX)) {
+                log.error("Authorization header doesn't start with '{}'. Header: '{}'", BEARER_PREFIX, authorizeHeader);
+                throw new BadCredentialsException("Invalid Authorization header format. Must start with 'Bearer '");
+            }
 
+            // Extract token
             String token = authorizeHeader.substring(BEARER_PREFIX.length()).trim();
 
-            // calls service to handle logout
+            // Check 3: Is token empty?
+            if (token.isEmpty()) {
+                log.error("Token is empty after Bearer prefix");
+                throw new BadCredentialsException("Token cannot be empty");
+            }
 
-            authService.logout(token , logoutAllDevices);
+            log.info("Extracted token length: {}", token.length());
+            log.info("First 20 chars of token: {}", token.substring(0, Math.min(20, token.length())));
 
-            Long processingTime = System.currentTimeMillis()-startTime;
-            log.info("User logged out successful from ip : {} (took{}ms)", clientIp ,processingTime);
+            // Call service to handle logout
+            authService.logout(token, logoutAllDevices);
 
+            Long processingTime = System.currentTimeMillis() - startTime;
+            log.info("User logged out successfully from ip: {} (took {}ms)", clientIp, processingTime);
 
-            ApiResponseWrapper<Void> responseWrapper  = ApiResponseWrapper.success(
-                    null, // No data for logout
-                    logoutAllDevices
-                    ? "Logged out from all devices successfully"
-                    : "Logged out successfully",
+            ApiResponseWrapper<Void> responseWrapper = ApiResponseWrapper.success(
+                    null,
+                    logoutAllDevices ? "Logged out from all devices successfully" : "Logged out successfully",
                     HttpStatus.OK.value()
             );
 
-            return  ResponseEntity.ok()
+            return ResponseEntity.ok()
                     .header("X-Processing-Time", String.valueOf(processingTime))
                     .body(responseWrapper);
-        }catch (Exception e){
 
-            log.warn("Logout failed from IP: {}, error: {}", clientIp, e.getMessage());
-            throw e;
+        } catch (BadCredentialsException e) {
+            log.warn("Authentication failed during logout from IP: {}, error: {}", clientIp, e.getMessage());
+
+            // Return proper error response
+            ApiResponseWrapper<Void> errorResponse = ApiResponseWrapper.error(
+                    e.getMessage(),
+                    HttpStatus.UNAUTHORIZED.value(),
+                    "AUTH_ERROR"
+            );
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+
+        } catch (Exception e) {
+            log.error("Logout failed from IP: {}, error: {}", clientIp, e.getMessage(), e);
+
+            ApiResponseWrapper<Void> errorResponse = ApiResponseWrapper.error(
+                    "Logout failed: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    "LOGOUT_ERROR"
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+
 
 }
