@@ -186,6 +186,7 @@ public class TokenBlacklistService {
                 Long removed = redisTemplate.opsForSet().remove(userTokensKey, (Object) toRemove.toArray(new String[0]));
 
                 // Also clean up from blacklist if they're there
+                // yes its wroking
                 for (String token : toRemove) {
                     String blacklistKey = BLACKLIST_PREFIX + token;
                     redisTemplate.delete(blacklistKey);
