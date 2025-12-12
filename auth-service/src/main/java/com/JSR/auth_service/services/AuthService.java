@@ -5,13 +5,17 @@ import com.JSR.auth_service.dto.LoginResponse;
 import com.JSR.auth_service.dto.SignupRequest;
 import com.JSR.auth_service.dto.SignupResponse;
 
+import java.util.concurrent.CompletableFuture;
+
 
 public interface AuthService {
 
 
     SignupResponse signup(SignupRequest request);
-    LoginResponse login(LoginRequest request);
+    CompletableFuture<LoginResponse> login(LoginRequest request);
 
 
     void logout(String token, boolean logoutAllDevices);
+     LoginResponse protectedLogin(LoginRequest request);
+
 }

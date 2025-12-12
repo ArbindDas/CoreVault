@@ -13,6 +13,8 @@ import com.JSR.auth_service.repository.UsersRepository;
 import com.JSR.auth_service.services.AuthService;
 import com.JSR.auth_service.services.TokenBlacklistService;
 import com.JSR.auth_service.utils.JwtUtil;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -21,6 +23,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 
@@ -94,44 +100,8 @@ public class AuthServiceImpl implements AuthService{
 
 
 
-    @Override
-    public LoginResponse login(LoginRequest request) {
-        Users users = usersRepository.findByEmail(request.email())
-                .orElseThrow(() -> new UserNotFoundException("user not found with email -> "+request.email()));
-
-        if (!passwordEncoder.matches(request.password(), users.getPassword())){
-            throw new BadCredentialsException("Invalid email or password");
-        }
-        if (!users.isEnabled()){
-            throw new DisabledException("User account is disabled");
-        }
-
-        String token = jwtUtil.generateToken(users.getEmail(), users.getRoles());
 
 
-        // ✅ Store token AFTER generation
-        tokenBlacklistService.storeActiveToken(users.getEmail(), token);
-
-        log.info("the generated jwt token is {}" , token);
-        log.info("User {} logged in with roles {}. JWT: {}",
-                users.getEmail(),
-                users.getRoles().stream().map(Roles::getName).collect(Collectors.toList()),
-                token);
-
-        return new LoginResponse(
-
-                token,
-                "Bearer",
-                users.getId(),
-                users.getFullName(),
-                users.getEmail(),
-                users.getRoles().stream()
-                        .map(Roles::getName)
-                        .collect(Collectors.toSet())
-        );
-
-
-    }
 
     @Override
     public void logout(String token, boolean logoutAllDevices) {
@@ -161,5 +131,109 @@ public class AuthServiceImpl implements AuthService{
             throw new RuntimeException("Logout failed: " + e.getMessage());
         }
         }
+
+    @Override
+    public LoginResponse protectedLogin(LoginRequest request) {
+        try {
+            CompletableFuture<LoginResponse> future = login(request);
+            return future.get(10, TimeUnit.SECONDS); // Wait for async result
+        } catch (TimeoutException e) {
+            log.error("Login timeout in protectedLogin: {}", e.getMessage());
+            return new LoginResponse(null, null, null, null, null, Set.of("TIMEOUT"));
+        } catch (Exception e) {
+            log.error("Login error in protectedLogin: {}", e.getMessage());
+            return new LoginResponse(null, null, null, null, null, Set.of("ERROR"));
+        }
+    }
+
+
+    // ✅ CORRECT: Returns CompletableFuture for @TimeLimiter
+    @CircuitBreaker(name = "authService", fallbackMethod = "serviceUnavailableFallback")
+    @TimeLimiter(name = "authTimeout", fallbackMethod = "timeoutFallback")
+    @Override
+    public CompletableFuture<LoginResponse> login(LoginRequest request) {
+        return CompletableFuture.supplyAsync(() -> {
+            Users users = usersRepository.findByEmail(request.email())
+                    .orElseThrow(() -> new UserNotFoundException("user not found"));
+
+            if (!passwordEncoder.matches(request.password(), users.getPassword())) {
+                throw new BadCredentialsException("Invalid email or password");
+            }
+            if (!users.isEnabled()) {
+                throw new DisabledException("User account is disabled");
+            }
+
+            String token = jwtUtil.generateToken(users.getEmail(), users.getRoles());
+            tokenBlacklistService.storeActiveToken(users.getEmail(), token);
+
+            return new LoginResponse(
+                    token, "Bearer", users.getId(),
+                    users.getFullName(), users.getEmail(),
+                    users.getRoles().stream()
+                            .map(Roles::getName)
+                            .collect(Collectors.toSet())
+            );
+        });
+    }
+
+    // ✅ CORRECT: Returns CompletableFuture
+    private CompletableFuture<LoginResponse> timeoutFallback(LoginRequest request, Throwable e) {
+        log.warn("Login timeout: {}", e.getMessage());
+        return CompletableFuture.completedFuture(
+                new LoginResponse(null, null, null, null, null, Set.of("TIMEOUT"))
+        );
+    }
+
+    // ✅ CORRECT: Returns CompletableFuture
+    private CompletableFuture<LoginResponse> serviceUnavailableFallback(LoginRequest request, Throwable e) {
+        log.error("Auth service unavailable: {}", e.getMessage());
+        return CompletableFuture.completedFuture(
+                new LoginResponse(null, null, null, null, null, Set.of("SERVICE_UNAVAILABLE"))
+        );
+    }
+
+
+//
+//    @Override
+//    public LoginResponse login(LoginRequest request) {
+//        Users users = usersRepository.findByEmail(request.email())
+//                .orElseThrow(() -> new UserNotFoundException("user not found with email -> "+request.email()));
+//
+//        if (!passwordEncoder.matches(request.password(), users.getPassword())){
+//            throw new BadCredentialsException("Invalid email or password");
+//        }
+//        if (!users.isEnabled()){
+//            throw new DisabledException("User account is disabled");
+//        }
+//
+//        String token = jwtUtil.generateToken(users.getEmail(), users.getRoles());
+//
+//
+//        // ✅ Store token AFTER generation
+//        tokenBlacklistService.storeActiveToken(users.getEmail(), token);
+//
+//        log.info("the generated jwt token is {}" , token);
+//        log.info("User {} logged in with roles {}. JWT: {}",
+//                users.getEmail(),
+//                users.getRoles().stream().map(Roles::getName).collect(Collectors.toList()),
+//                token);
+//
+//        return new LoginResponse(
+//
+//                token,
+//                "Bearer",
+//                users.getId(),
+//                users.getFullName(),
+//                users.getEmail(),
+//                users.getRoles().stream()
+//                        .map(Roles::getName)
+//                        .collect(Collectors.toSet())
+//        );
+//
+//
+//    }
+
+
+
 
 }

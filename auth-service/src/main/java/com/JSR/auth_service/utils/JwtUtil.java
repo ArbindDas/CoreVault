@@ -89,6 +89,7 @@ public class JwtUtil {
     }
 
     // Validate token
+
     public boolean isTokenValid(String token, String email) {
         try {
             String extractedEmail = extractEmail(token);

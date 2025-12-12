@@ -1,7 +1,10 @@
 package com.JSR.auth_service.controllers;
 
+import com.JSR.auth_service.Exception.UserNotFoundException;
 import com.JSR.auth_service.dto.*;
 import com.JSR.auth_service.services.AuthService;
+import com.JSR.auth_service.services.RateLimitService;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -12,14 +15,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Tag(name = "Authentication", description = "Authentication and authorization endpoints")
@@ -38,11 +45,18 @@ public class AuthController {
     private static final String BEARER_PREFIX = "Bearer ";  // Lowercase 'b' with space!
 
 
+    private final RateLimitService rateLimitService;
+    private final MeterRegistry meterRegistry;
     private final AuthService authService;
 
-    public AuthController(AuthService authService) {
+    @Autowired
+    public AuthController(RateLimitService rateLimitService, MeterRegistry meterRegistry, AuthService authService) {
+        this.rateLimitService = rateLimitService;
+        this.meterRegistry = meterRegistry;
         this.authService = authService;
     }
+
+
 
 
     // Helper method to get client IP
@@ -181,10 +195,53 @@ public class AuthController {
             )
     })
 
+//
+//    @PostMapping(value = "/signin",
+//            consumes = MediaType.APPLICATION_JSON_VALUE,
+//            produces = MediaType.APPLICATION_JSON_VALUE
+//
+//    )
+//    public ResponseEntity<ApiResponseWrapper<LoginResponse>> signin(
+//            @Parameter(description = "User login credentials", required = true)
+//            @Valid @RequestBody LoginRequest request,
+//            HttpServletRequest httpRequest
+//    ) {
+//        String clientIp = getClientIp(httpRequest);
+//        log.info("Login attempt from ip {} for email :{}", clientIp, request.email());
+//
+//        try {
+//            Long startTime = System.currentTimeMillis();
+//            LoginResponse loginResponse = authService.login(request);
+//            Long processingTime = System.currentTimeMillis() - startTime;
+//
+//            // Log success with JWT
+//            log.info("Successfully login for user {} from ip {} (took {}ms). JWT: {}",
+//                    request.email(), clientIp, processingTime, loginResponse.token());
+//
+//            ApiResponseWrapper<LoginResponse> responseWrapper = ApiResponseWrapper.success(
+//                    loginResponse,   // ← This LoginResponse becomes the 'data' field
+//                    "Login successful",
+//                    HttpStatus.OK.value()
+//            );
+//
+//            return ResponseEntity.ok()
+//                    .header("X-Processing-Time", String.valueOf(processingTime))
+//                    .header("X-Auth-Token", loginResponse.token())
+//                    .header("X-Auth-Token-Type", loginResponse.tokenType())
+//                    .header("Access-Control-Expose-Headers", "X-Auth-Token, X-Auth-Token-Type, X-Processing-Time") // Important for CORS
+//                    .body(responseWrapper);
+//
+//        } catch (Exception e) {
+//            log.warn("Failed login attempt for email: {} from IP: {}, error: {}",
+//                    request.email(), clientIp, e.getMessage());
+//            throw e;
+//        }
+//    }
+
+
     @PostMapping(value = "/signin",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
-
     )
     public ResponseEntity<ApiResponseWrapper<LoginResponse>> signin(
             @Parameter(description = "User login credentials", required = true)
@@ -192,35 +249,117 @@ public class AuthController {
             HttpServletRequest httpRequest
     ) {
         String clientIp = getClientIp(httpRequest);
-        log.info("Login attempt from ip {} for email :{}", clientIp, request.email());
+        String userAgent = httpRequest.getHeader("User-Agent");
+
+        log.info("Login attempt from ip {} for email: {}", clientIp, request.email());
 
         try {
             Long startTime = System.currentTimeMillis();
-            LoginResponse loginResponse = authService.login(request);
+
+            // 1️⃣ RATE LIMITING (at controller level - PRODUCTION BEST PRACTICE)
+            if (rateLimitService.isRateLimited("login:ip:" + clientIp, 10, Duration.ofMinutes(1))) {
+                meterRegistry.counter("auth.rate_limit.ip").increment();
+                log.warn("IP rate limit exceeded: {}", clientIp);
+                return createRateLimitResponse("Too many requests from this IP");
+            }
+
+            if (rateLimitService.isRateLimited("login:user:" + request.email(), 5, Duration.ofMinutes(5))) {
+                meterRegistry.counter("auth.rate_limit.user").increment();
+                log.warn("User rate limit exceeded: {}", request.email());
+                return createRateLimitResponse("Too many login attempts for this account");
+            }
+
+            // 2️⃣ CALL PROTECTED SERVICE (with circuit breaker & timeout)
+            LoginResponse loginResponse = authService.protectedLogin(request);
+
+            // 3️⃣ CHECK FOR SERVICE FAILURE (from fallback)
+            if (loginResponse.token() == null) {
+                // Service was unavailable (circuit breaker fallback triggered)
+                meterRegistry.counter("auth.service_unavailable").increment();
+
+                ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
+                        "Authentication service is temporarily unavailable",
+                        HttpStatus.SERVICE_UNAVAILABLE.value(),
+                        "SERVICE_UNAVAILABLE"
+                );
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .header("Retry-After", "30")
+                        .body(errorWrapper);
+            }
+
             Long processingTime = System.currentTimeMillis() - startTime;
 
-            // Log success with JWT
-            log.info("Successfully login for user {} from ip {} (took {}ms). JWT: {}",
-                    request.email(), clientIp, processingTime, loginResponse.token());
+            // 4️⃣ SUCCESS - Log metrics
+            meterRegistry.counter("auth.login.success").increment();
+            meterRegistry.timer("auth.login.duration").record(processingTime, TimeUnit.MILLISECONDS);
+
+            log.info("Successfully login for user {} from ip {} (took {}ms)",
+                    request.email(), clientIp, processingTime);
 
             ApiResponseWrapper<LoginResponse> responseWrapper = ApiResponseWrapper.success(
-                    loginResponse,   // ← This LoginResponse becomes the 'data' field
+                    loginResponse,
                     "Login successful",
                     HttpStatus.OK.value()
             );
 
             return ResponseEntity.ok()
                     .header("X-Processing-Time", String.valueOf(processingTime))
-                    .header("X-Auth-Token", loginResponse.token())
-                    .header("X-Auth-Token-Type", loginResponse.tokenType())
-                    .header("Access-Control-Expose-Headers", "X-Auth-Token, X-Auth-Token-Type, X-Processing-Time") // Important for CORS
+                    .header("Authorization", "Bearer " + loginResponse.token())
+                    .header("Access-Control-Expose-Headers", "Authorization, X-Processing-Time")
                     .body(responseWrapper);
 
-        } catch (Exception e) {
-            log.warn("Failed login attempt for email: {} from IP: {}, error: {}",
+        } catch (UserNotFoundException | BadCredentialsException e) {
+            // Authentication failures (NOT service failures)
+            meterRegistry.counter("auth.login.failure.authentication").increment();
+
+            log.warn("Authentication failed for {} from {}: {}",
                     request.email(), clientIp, e.getMessage());
-            throw e;
+
+            ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
+                    "Invalid email or password",
+                    HttpStatus.UNAUTHORIZED.value(),
+                    "AUTHENTICATION_FAILED"
+            );
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorWrapper);
+
+        } catch (DisabledException e) {
+            // Disabled account
+            meterRegistry.counter("auth.login.failure.disabled").increment();
+
+            ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
+                    "Account is disabled",
+                    HttpStatus.FORBIDDEN.value(),
+                    "ACCOUNT_DISABLED"
+            );
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorWrapper);
+
+        } catch (Exception e) {
+            // Unexpected errors
+            meterRegistry.counter("auth.login.failure.unexpected").increment();
+
+            log.error("Unexpected login error for {} from {}: {}",
+                    request.email(), clientIp, e.getMessage(), e);
+
+            ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
+                    "Internal server error",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    "INTERNAL_ERROR"
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorWrapper);
         }
+    }
+
+    private ResponseEntity<ApiResponseWrapper<LoginResponse>> createRateLimitResponse(String message) {
+        ApiResponseWrapper<LoginResponse> wrapper = ApiResponseWrapper.error(
+                message,
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                "RATE_LIMIT_EXCEEDED"
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", "60")
+                .header("X-RateLimit-Limit", "10")
+                .header("X-RateLimit-Remaining", "0")
+                .body(wrapper);
     }
 
 
