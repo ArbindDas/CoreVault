@@ -1,22 +1,33 @@
-spring :
-  application :
-    name : service-registry  # lowercase is preferred
+spring:
+  application:
+    name: service-registry
 
-server :
-  port : 8761
+server:
+  port: 8761
 
-eureka :
-  client :
-    register-with-eureka : false  # this service itself is the registry
-    fetch-registry : false        # it does not need to fetch registry
-  server :
-    wait-time-in-ms-when-sync-empty : 0  # optional, faster startup
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    wait-time-in-ms-when-sync-empty: 0
+    enable-self-preservation: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
 
-management :
-  endpoints :
-    enabled-by-default :
-      web :
-        exposure :
-          includes : ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:*}
-
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+  level:
+    org.springframework.cloud.netflix.eureka: DEBUG
+    com.netflix.eureka: DEBUG
+    com.netflix.discovery: DEBUG

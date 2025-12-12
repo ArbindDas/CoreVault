@@ -1,0 +1,20 @@
+package com.JSR.user_service.dto;
+
+import lombok.*;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
+@Setter
+public class AddressDTO {
+    private Long id;
+    private String addressLine1;
+    private String addressLine2;
+    private String city;
+    private String state;
+    private String country;
+    private String zipCode;
+    private Boolean isPrimary;
+}
