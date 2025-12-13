@@ -34,16 +34,16 @@ import java.util.List;
 //5.  todo -> Sets SecurityContext for Spring Security
 
 
-// Main Purpose of the JwtFilter Class
-//Core Mission: Authentication Gatekeeper
-//The JwtFilter serves as the authentication checkpoint for your entire Spring Boot application.
-//Think of it as the security guard at the entrance of a building who:
-//
-//Checks everyone's ID (JWT token)
-//
-//Verifies it's valid and not expired
-//
-//Decides who gets in and what they can access
+    // Main Purpose of the JwtFilter Class
+    //Core Mission: Authentication Gatekeeper
+    //The JwtFilter serves as the authentication checkpoint for your entire Spring Boot application.
+    //Think of it as the security guard at the entrance of a building who:
+    //
+    //Checks everyone's ID (JWT token)
+    //
+    //Verifies it's valid and not expired
+    //
+    //Decides who gets in and what they can access
 
 
 
