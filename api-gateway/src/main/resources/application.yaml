@@ -1,31 +1,88 @@
+
+
 spring:
   application:
     name: api-gateway
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/microservices-realm
+          jwk-set-uri: http://localhost:8080/realms/microservices-realm/protocol/openid-connect/certs
+
+
   cloud:
     gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: false  # ← Set to FALSE since services are uppercase
       routes:
         - id: auth-service
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/v1/auth/**
+          filters:
+            - StripPrefix=1  # Removes /api/v1 from the path before forwarding
+
         - id: user-service
           uri: lb://USER-SERVICE
           predicates:
-            - Path=/api/users/**   # Covers all AddressController and UserProfileController endpoints
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=1  # Removes /api from the path before forwarding
+
+        - id: discovery-server-web
+          uri: http://service-registry:8761
+          predicates:
+            - Path=/eureka/web
+          filters:
+            - SetPath=/
+
+        - id: discovery-server-static
+          uri: http://service-registry:8761
+          predicates:
+            - Path=/eureka/**
+
+server:
+  port: 8765
+
+keycloak:
+  auth-server-url: http://localhost:8080
+  realm: microservices-realm
+  resource: spring-cloud-client
+  credentials:
+    secret: BT80U9JXgOrOH6Le9yTL3pWRIC4sRGPR
 
 eureka:
   client:
     service-url:
-      default-zone: http://service-registry:8761/eureka/
+      defaultZone: http://service-registry:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+    healthcheck:
+      enabled: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.cloud.client.ip-address}:${server.port}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
     org.springframework.security: DEBUG
+    com.netflix.eureka: OFF
+    com.netflix.discovery: OFF
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,gateway,tracing
+        include: health, metrics, gateway, routes, globallfilters, routefilters  # ← Add these
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true  # ← Enable gateway endpoint

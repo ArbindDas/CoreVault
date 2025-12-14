@@ -8,6 +8,7 @@
           <option value="auth-service" />
           <option value="auth-service" />
           <option value="user-service" />
+          <option value="api-gateway" />
         </list>
       </option>
       <option name="ignoredPackages">
@@ -15,6 +16,7 @@
           <option value="org.apache.httpcomponents:httpclient:4.5.3" />
           <option value="commons-configuration:commons-configuration:1.10" />
           <option value="commons-fileupload:commons-fileupload:1.5" />
+          <option value="org.apache.httpcomponents:httpclient:4.5.3" />
         </list>
       </option>
       <option name="ignoredReasons">
@@ -22,6 +24,7 @@
           <option value="Fixed in branch" />
           <option value="In progress" />
           <option value="Fixed in branch" />
+          <option value="Other" />
         </list>
       </option>
     </inspection_tool>

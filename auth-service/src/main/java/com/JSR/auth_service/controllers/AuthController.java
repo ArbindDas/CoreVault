@@ -42,7 +42,7 @@ public class AuthController {
 
     // Use THESE constants (correct format)
     private static final String AUTH_HEADER = "Authorization";
-    private static final String BEARER_PREFIX = "Bearer ";  // Lowercase 'b' with space!
+    private static final String BEARER_PREFIX = "Bearer ";
 
 
     private final RateLimitService rateLimitService;
@@ -195,50 +195,6 @@ public class AuthController {
             )
     })
 
-//
-//    @PostMapping(value = "/signin",
-//            consumes = MediaType.APPLICATION_JSON_VALUE,
-//            produces = MediaType.APPLICATION_JSON_VALUE
-//
-//    )
-//    public ResponseEntity<ApiResponseWrapper<LoginResponse>> signin(
-//            @Parameter(description = "User login credentials", required = true)
-//            @Valid @RequestBody LoginRequest request,
-//            HttpServletRequest httpRequest
-//    ) {
-//        String clientIp = getClientIp(httpRequest);
-//        log.info("Login attempt from ip {} for email :{}", clientIp, request.email());
-//
-//        try {
-//            Long startTime = System.currentTimeMillis();
-//            LoginResponse loginResponse = authService.login(request);
-//            Long processingTime = System.currentTimeMillis() - startTime;
-//
-//            // Log success with JWT
-//            log.info("Successfully login for user {} from ip {} (took {}ms). JWT: {}",
-//                    request.email(), clientIp, processingTime, loginResponse.token());
-//
-//            ApiResponseWrapper<LoginResponse> responseWrapper = ApiResponseWrapper.success(
-//                    loginResponse,   // ← This LoginResponse becomes the 'data' field
-//                    "Login successful",
-//                    HttpStatus.OK.value()
-//            );
-//
-//            return ResponseEntity.ok()
-//                    .header("X-Processing-Time", String.valueOf(processingTime))
-//                    .header("X-Auth-Token", loginResponse.token())
-//                    .header("X-Auth-Token-Type", loginResponse.tokenType())
-//                    .header("Access-Control-Expose-Headers", "X-Auth-Token, X-Auth-Token-Type, X-Processing-Time") // Important for CORS
-//                    .body(responseWrapper);
-//
-//        } catch (Exception e) {
-//            log.warn("Failed login attempt for email: {} from IP: {}, error: {}",
-//                    request.email(), clientIp, e.getMessage());
-//            throw e;
-//        }
-//    }
-
-
     @PostMapping(value = "/signin",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
@@ -257,13 +213,13 @@ public class AuthController {
             Long startTime = System.currentTimeMillis();
 
             // 1️⃣ RATE LIMITING (at controller level - PRODUCTION BEST PRACTICE)
-            if (rateLimitService.isRateLimited("login:ip:" + clientIp, 10, Duration.ofMinutes(1))) {
+            if (rateLimitService.isRateLimited("login:ip:" + clientIp, 100, Duration.ofMinutes(1))) {
                 meterRegistry.counter("auth.rate_limit.ip").increment();
                 log.warn("IP rate limit exceeded: {}", clientIp);
                 return createRateLimitResponse("Too many requests from this IP");
             }
 
-            if (rateLimitService.isRateLimited("login:user:" + request.email(), 5, Duration.ofMinutes(5))) {
+            if (rateLimitService.isRateLimited("login:user:" + request.email(), 100, Duration.ofMinutes(1))) {
                 meterRegistry.counter("auth.rate_limit.user").increment();
                 log.warn("User rate limit exceeded: {}", request.email());
                 return createRateLimitResponse("Too many login attempts for this account");
