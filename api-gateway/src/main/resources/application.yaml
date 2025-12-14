@@ -8,8 +8,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8080/realms/microservices-realm
-          jwk-set-uri: http://localhost:8080/realms/microservices-realm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWT_SET_URI}
 
 
   cloud:
@@ -53,7 +53,7 @@ keycloak:
   realm: microservices-realm
   resource: spring-cloud-client
   credentials:
-    secret: BT80U9JXgOrOH6Le9yTL3pWRIC4sRGPR
+    secret: ${KEYCLOAK_CLIENT_SECRET}
 
 eureka:
   client:
