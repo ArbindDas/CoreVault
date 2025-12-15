@@ -40,36 +40,6 @@ public class SpringSecurity {
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
     private String issuerUri;
 
-//    @Bean
-//    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http){
-//        return http
-//                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-//                .authorizeExchange(exchanges -> exchanges
-//                        .pathMatchers(
-//                                "/debug/**" ,
-//                                "/api/v1/auth/**",
-//                                "/api/public/**",
-//                                "/eureka/**",
-//                                "/actuator/**"
-//                        ).permitAll()
-//                        .pathMatchers(
-//                                "/api/users/**",
-//                                "/api/inventory/**",
-//                                "/api/order/**",
-//                                "/api/product/**",
-//                                "/api/test/**"
-//                        )
-//                        .authenticated()
-//                        .pathMatchers("/api/admin/**").hasRole("ADMIN")
-//                        .anyExchange().authenticated()
-//                )
-//                .oauth2ResourceServer(oauth2 -> oauth2
-//                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
-//                )
-//                .build();
-//    }
-
-
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
