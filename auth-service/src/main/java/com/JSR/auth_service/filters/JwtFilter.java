@@ -160,7 +160,8 @@ public class JwtFilter extends OncePerRequestFilter {
         return path.startsWith("/api/v1/auth/") ||           // All auth endpoints
                 path.startsWith("/api/public/") ||         // Public endpoints
                 path.startsWith("/api/test/") ||
-                path.startsWith("/api/v1/auth/logout") && method.equals("POSt");
+                path.startsWith("/api/v1/auth/logout") && method.equals("POSt")||
+                path.startsWith("/actuator");
     }
 
     /**

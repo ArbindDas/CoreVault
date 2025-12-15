@@ -66,12 +66,14 @@ public class SpringSecurity {
                                 "/api/test",
                                 "/api/v1/auth/**",
                                 "/api/test/**",
-                                "/api/health",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/swagger-resources/**",
-                                "/webjars/**"
+                                "/webjars/**",
+                                "/actuator/**",  // Add Actuator endpoints
+                                "/actuator/health", // Specifically allow health endpoint
+                                "/management/**"
                         ).permitAll()
 
 
