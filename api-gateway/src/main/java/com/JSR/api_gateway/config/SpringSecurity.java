@@ -1,15 +1,10 @@
 
 package com.JSR.api_gateway.config;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.cloud.gateway.config.PropertiesRouteDefinitionLocator;
-import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
@@ -21,8 +16,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
-import org.springframework.security.oauth2.server.resource.web.server.authentication.ServerBearerTokenAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
@@ -61,7 +56,6 @@ public class SpringSecurity {
                 .build();
     }
 
-
     // WebFilter that removes Authorization header for auth endpoints
     public static class SkipAuthEndpointsFilter implements WebFilter {
         @Override
@@ -78,6 +72,27 @@ public class SpringSecurity {
 
             return chain.filter(exchange);
         }
+    }
+
+    @Bean
+    public WebFilter jwtForwardingFilter() {
+        return (exchange, chain) -> {
+            // Get the authenticated JWT from security context
+            return exchange.getPrincipal()
+                    .cast(JwtAuthenticationToken.class)
+                    .map(token -> {
+                        String jwtToken = token.getToken().getTokenValue();
+
+                        // Add Authorization header to downstream request
+                        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtToken)
+                                .build();
+
+                        return exchange.mutate().request(mutatedRequest).build();
+                    })
+                    .defaultIfEmpty(exchange)
+                    .flatMap(chain::filter);
+        };
     }
 
 

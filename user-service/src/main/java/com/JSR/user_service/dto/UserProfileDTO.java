@@ -1,18 +1,19 @@
 package com.JSR.user_service.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+
+import lombok.*;
 
 import java.util.List;
 
-@Data
-@Builder
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
+@Getter
+@Setter
+@Builder
 public class UserProfileDTO {
+
     private Long id;
+    private String keycloakUserId;
     private String email;
     private String fullName;
     private String phoneNumber;
@@ -20,5 +21,5 @@ public class UserProfileDTO {
     private String dateOfBirth;
     private String profileImageUrl;
     private String preferences;
-    private List<AddressDTO> addresses;
+    private List <AddressDTO> addresses;
 }

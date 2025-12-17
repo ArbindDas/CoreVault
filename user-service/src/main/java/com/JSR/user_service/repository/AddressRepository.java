@@ -1,29 +1,27 @@
 package com.JSR.user_service.repository;
-
-
 import com.JSR.user_service.entities.Address;
 import com.JSR.user_service.entities.UserProfile;
-import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AddressRepository extends JpaRepository<Address, Long> {
-    // Find addresses by user's email through UserProfile
-    @Query("SELECT a FROM Address a WHERE a.userProfile.email = :email")
-    List<Address> findByUserEmail(@Param("email") String email);
 
+    // find all addresses for a user profile
+    List<Address>findByUserProfileId(Long userProfileId);
 
-    List<Address> findByUserProfile(UserProfile userProfile);
-    List<Address> findByUserProfileAndIsPrimary(UserProfile userProfile, boolean isPrimary);
-    int countByUserProfile(UserProfile userProfile);
+    // find the default address
+    Optional<Address>findByUserProfileIdAndIsDefaultTrue(Long userProfileId);
 
-    // Custom query to fetch addresses with profile in one query
-    @Query("SELECT a FROM Address a JOIN FETCH a.userProfile WHERE a.userProfile = :profile")
-    List<Address> findByUserProfileWithProfile(@Param("profile") UserProfile profile);
+    // Find addresses by type (SHIPPING, BILLING, etc.)
+    List<Address>findUserProfileIdAndType(Long userProfileId , String type);
+
+    void deleteByUserProfile(UserProfile userProfile);
+
+    Optional<Address> findByIdAndUserProfile(Long addressId, UserProfile userProfile);
 }
 
 

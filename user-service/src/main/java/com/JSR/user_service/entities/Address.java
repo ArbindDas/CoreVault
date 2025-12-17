@@ -19,10 +19,8 @@ public class Address {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_profile_id", nullable = false)
-    @JsonBackReference // Add this
-    private UserProfile userProfile;
+    @Column(name = "type", nullable = false)
+    private String type;
 
     @Column(name = "address_line1", nullable = false)
     private String addressLine1;
@@ -42,7 +40,16 @@ public class Address {
     @Column(name = "zip_code")
     private String zipCode;
 
+    @Getter
+    @Setter
     @Column(name = "is_primary")
-    private boolean isPrimary;
+    private Boolean isPrimary;
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_profile_id", nullable = false)
+    @JsonBackReference // Add this
+    private UserProfile userProfile;
+
 
 }

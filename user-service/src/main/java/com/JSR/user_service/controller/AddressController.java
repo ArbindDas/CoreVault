@@ -14,25 +14,5 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AddressController {
 
-    private final AddressService addressService;
 
-    @GetMapping("/getAllAddress")
-    public List<AddressDTO> getAll() {
-        return addressService.getAllAddresses();
-    }
-
-    @PostMapping("/addAddress")
-    public AddressDTO add(@RequestBody AddressDTO address) {
-        return addressService.addAddress(address);
-    }
-
-    @PutMapping("/updateAddressById/{id}")
-    public AddressDTO update(@PathVariable Long id, @RequestBody AddressDTO address) {
-        return addressService.updateAddress(id, address);
-    }
-
-    @DeleteMapping("/deleteAddressById/{id}")
-    public void delete(@PathVariable Long id) {
-        addressService.deleteAddress(id);
-    }
 }
