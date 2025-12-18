@@ -32,10 +32,6 @@ import java.util.stream.Collectors;
 @EnableWebFluxSecurity
 public class SpringSecurity {
 
-    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
-    private String issuerUri;
-
-
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         return http
@@ -50,6 +46,8 @@ public class SpringSecurity {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 )
+                // Add the JWT forwarding filter AFTER authentication
+                .addFilterAfter(jwtForwardingFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
                 // Add a filter to skip OAuth2 for auth endpoints
                 .addFilterBefore(new SkipAuthEndpointsFilter(),
                         SecurityWebFiltersOrder.AUTHENTICATION)
@@ -96,10 +94,6 @@ public class SpringSecurity {
     }
 
 
-    @Bean
-    public ReactiveJwtDecoder jwtDecoder() {
-        return NimbusReactiveJwtDecoder.withIssuerLocation(issuerUri).build();
-    }
 
     private Converter<Jwt, ? extends Mono<? extends AbstractAuthenticationToken>>
     jwtAuthenticationConverter() {

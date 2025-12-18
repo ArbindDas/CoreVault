@@ -8,13 +8,16 @@ import com.JSR.user_service.repository.AddressRepository;
 import com.JSR.user_service.repository.UserProfileRepository;
 import com.JSR.user_service.service.UserProfileService;
 import com.JSR.user_service.utils.JwtUtil;
-import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
+@Slf4j
 public class UserProfileServiceImpl implements UserProfileService {
 
 
@@ -32,12 +35,21 @@ public class UserProfileServiceImpl implements UserProfileService {
     @Override
     public UserProfileDTO getProfileFromToken() {
 
+        log.info("=== getProfileFromToken() called ===");
+
+        // Log full JWT details for debugging
+        jwtUtil.logFullJwtDetails();
         // get user info from token
         String userId = jwtUtil.getUserId();
         String email = jwtUtil.getEmail();
         String username = jwtUtil.getUsername();
 
+        log.debug("Extracted values - UserId: {}, Email: {}, Username: {}",
+                userId, email, username);
+
         if (userId == null) {
+            log.error("❌ User not authenticated - userId is null");
+            log.debug("Stack trace for debugging:", new RuntimeException("Debug stack trace"));
             throw new RuntimeException("User not authenticated");
         }
         // find existing user
@@ -286,7 +298,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .id(address.getId())
                 .type(address.getType())
                 .addressLine1(address.getAddressLine1())
-                .addressLine1(address.getAddressLine2())
+                .addressLine2(address.getAddressLine2())
                 .city(address.getCity())
                 .state(address.getState())
                 .country(address.getCountry())

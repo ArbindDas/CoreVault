@@ -2,12 +2,7 @@
 spring:
   application:
     name: api-gateway
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/microservices-realm}
-          jwk-set-uri: ${KEYCLOAK_JWT_SET_URI:http://localhost:8080/realms/microservices-realm/protocol/openid-connect/certs}
+
   cloud:
     gateway:
       discovery:

@@ -10,14 +10,6 @@ import java.util.Optional;
 @Repository
 public interface AddressRepository extends JpaRepository<Address, Long> {
 
-    // find all addresses for a user profile
-    List<Address>findByUserProfileId(Long userProfileId);
-
-    // find the default address
-    Optional<Address>findByUserProfileIdAndIsDefaultTrue(Long userProfileId);
-
-    // Find addresses by type (SHIPPING, BILLING, etc.)
-    List<Address>findUserProfileIdAndType(Long userProfileId , String type);
 
     void deleteByUserProfile(UserProfile userProfile);
 

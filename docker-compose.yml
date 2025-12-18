@@ -1,170 +1,168 @@
-
-
-services:
-  mysql-db:
-    image: mysql:8.0
-    container_name: mysql-db
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}  # Create a default database
-    ports:
+services :
+  mysql-db :
+    image : mysql:8.0
+    container_name : mysql-db
+    environment :
+      MYSQL_ROOT_PASSWORD : ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE : ${MYSQL_DATABASE}  # Create a default database
+    ports :
       - "3307:3306"
-    networks:
+    networks :
       - backend-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pcaptain@cz"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    volumes:
+    healthcheck :
+      test : [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pcaptain@cz" ]
+      interval : 10s
+      timeout : 5s
+      retries : 10
+      start_period : 30s
+    volumes :
       - mysql-data:/var/lib/mysql
-    command:
+    command :
       - --default-authentication-plugin=mysql_native_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
 
-  keycloak-db:
-    image: mysql:8.0
-    container_name: keycloak-db
-    environment:
-      MYSQL_DATABASE: keycloak
-      MYSQL_USER: keycloak
-      MYSQL_PASSWORD: keycloak123
-      MYSQL_ROOT_PASSWORD: captain@cz
-    volumes:
+  keycloak-db :
+    image : mysql:8.0
+    container_name : keycloak-db
+    environment :
+      MYSQL_DATABASE : keycloak
+      MYSQL_USER : keycloak
+      MYSQL_PASSWORD : keycloak123
+      MYSQL_ROOT_PASSWORD : captain@cz
+    volumes :
       - keycloak-data:/var/lib/mysql
-    networks:
+    networks :
       - backend-network
-    command:
+    command :
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --skip-character-set-client-handshake
-    healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+    healthcheck :
+      test : [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval : 10s
+      timeout : 5s
+      retries : 5
+      start_period : 30s
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0.0
-    container_name: keycloak
-    environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      KC_DB: mysql
-      KC_DB_URL_HOST: keycloak-db
-      KC_DB_URL_PORT: 3306
-      KC_DB_URL_DATABASE: keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak123
-      KC_HOSTNAME_STRICT: 'false'
-      KC_HOSTNAME_STRICT_HTTPS: 'false'
-#      KC_HOSTNAME: localhost
-      KC_PROXY: edge
-      KC_HTTP_ENABLED: 'true'
-    ports:
+  keycloak :
+    image : quay.io/keycloak/keycloak:24.0.0
+    container_name : keycloak
+    environment :
+      KEYCLOAK_ADMIN : ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD : ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB : mysql
+      KC_DB_URL_HOST : keycloak-db
+      KC_DB_URL_PORT : 3306
+      KC_DB_URL_DATABASE : keycloak
+      KC_DB_USERNAME : keycloak
+      KC_DB_PASSWORD : keycloak123
+      KC_HOSTNAME_STRICT : 'false'
+      KC_HOSTNAME_STRICT_HTTPS : 'false'
+      KC_HOSTNAME_URL: http://localhost:8080
+      KC_PROXY : edge
+      KC_HTTP_ENABLED : 'true'
+    ports :
       - "8080:8080"
-    depends_on:
-      keycloak-db:
-        condition: service_healthy
-    networks:
+    depends_on :
+      keycloak-db :
+        condition : service_healthy
+    networks :
       - backend-network
-    command: start-dev
-    healthcheck:
+    command : start-dev
+    healthcheck :
       # Simple port check - most reliable
-      test: [ "CMD-SHELL", "timeout 2 bash -c 'cat < /dev/null > /dev/tcp/localhost/8080'" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
+      test : [ "CMD-SHELL", "timeout 2 bash -c 'cat < /dev/null > /dev/tcp/localhost/8080'" ]
+      interval : 30s
+      timeout : 10s
+      retries : 5
+      start_period : 120s
 
-  redis:
-    image: redis:7-alpine
-    container_name: auth-redis
-    ports:
+  redis :
+    image : redis:7-alpine
+    container_name : auth-redis
+    ports :
       - "6379:6379"
-    networks:
+    networks :
       - backend-network
-    volumes:
+    volumes :
       - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    command: redis-server --appendonly yes
+    healthcheck :
+      test : [ "CMD", "redis-cli", "ping" ]
+      interval : 10s
+      timeout : 5s
+      retries : 10
+      start_period : 20s
+    command : redis-server --appendonly yes
 
-  service-registry:
-    build: ./service-registry
-    container_name: service-registry
-    ports:
+  service-registry :
+    build : ./service-registry
+    container_name : service-registry
+    ports :
       - "8761:8761"
-    networks:
+    networks :
       - backend-network
-    environment:
+    environment :
       - SPRING_PROFILES_ACTIVE=docker
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,metrics
-    depends_on:
-      mysql-db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    depends_on :
+      mysql-db :
+        condition : service_healthy
+      redis :
+        condition : service_healthy
 
-  api-gateway:
-    container_name: api-gateway
-    build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
-    image: api-gateway:latest
-    restart: always
-    ports:
+  api-gateway :
+    container_name : api-gateway
+    build :
+      context : ./api-gateway
+      dockerfile : Dockerfile
+    image : api-gateway:latest
+    restart : always
+    ports :
       - "8765:8765"
-    networks:
+    networks :
       - backend-network
-    depends_on:
-      service-registry:
-        condition: service_started
-      keycloak:
-        condition: service_healthy
-    environment:
+    depends_on :
+      service-registry :
+        condition : service_started
+      keycloak :
+        condition : service_healthy
+    environment :
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
       - KEYCLOAK_ISSUER_URI=http://keycloak:8080/realms/microservices-realm
       - KEYCLOAK_JWT_SET_URI=http://keycloak:8080/realms/microservices-realm/protocol/openid-connect/certs
       - KEYCLOAK_CLIENT_SECRET=BT80U9JXgOrOH6Le9yTL3pWRIC4sRGPR
 
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8765/actuator/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    healthcheck :
+      test : [ "CMD", "curl", "-f", "http://localhost:8765/actuator/health" ]
+      interval : 30s
+      timeout : 10s
+      retries : 3
+      start_period : 60s
 
-  auth-service:
-    container_name: auth-service
-    build:
-      context: ./auth-service
-      dockerfile: Dockerfile
-    image: auth-service:latest
-    restart: always
-    env_file:
+  auth-service :
+    container_name : auth-service
+    build :
+      context : ./auth-service
+      dockerfile : Dockerfile
+    image : auth-service:latest
+    restart : always
+    env_file :
       - ./auth-service/.env
-    ports:
+    ports :
       - "8081:8081"
-    depends_on:
-      mysql-db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      service-registry:
-        condition: service_started
-      keycloak:
-        condition: service_healthy
-    networks:
+    depends_on :
+      mysql-db :
+        condition : service_healthy
+      redis :
+        condition : service_healthy
+      service-registry :
+        condition : service_started
+      keycloak :
+        condition : service_healthy
+    networks :
       - backend-network
-    environment:
+    environment :
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8081
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
@@ -173,12 +171,12 @@ services:
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       - KEYCLOAK_ISSUER_URI=http://keycloak:8080/realms/microservices-realm
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1" ]  # Fixed port from 8080 to 8081
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    healthcheck :
+      test : [ "CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1" ]  # Fixed port from 8080 to 8081
+      interval : 30s
+      timeout : 10s
+      retries : 3
+      start_period : 60s
 
   user-service:
     container_name: user-service
@@ -198,6 +196,8 @@ services:
         condition: service_started
       keycloak:
         condition: service_healthy
+      redis: # Add explicit dependency on redis
+        condition: service_healthy
     networks:
       - backend-network
     environment:
@@ -208,6 +208,11 @@ services:
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       - KEYCLOAK_ISSUER_URI=http://keycloak:8080/realms/microservices-realm
+      #  todo -> Docker service-to-service communication
+      # Add Redis configuration
+      - SPRING_REDIS_HOST=redis  # Use Docker service name
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_TIMEOUT=2000
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:8090/actuator/health || exit 1" ]
       interval: 30s
@@ -215,11 +220,14 @@ services:
       retries: 3
       start_period: 60s
 
-volumes:
-  mysql-data:
-  redis-data:
-  keycloak-data:  # Added missing volume
 
-networks:
-  backend-network:
-    driver: bridge
+
+
+volumes :
+  mysql-data :
+  redis-data :
+  keycloak-data :  # Added missing volume
+
+networks :
+  backend-network :
+    driver : bridge

@@ -17,9 +17,7 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, Long> 
    Optional<UserProfile>findByEmail(String email);
    boolean existsByKeycloakUserId(String keycloakUserId);
    Boolean existsByEmail(String email);
-    void deleteAddress(Long addressId);
-    UserProfileDTO updateProfile(UserProfileDTO profileDTO);
-    UserProfileDTO addAddress(AddressDTO addressDTO);
+
 
 }
 

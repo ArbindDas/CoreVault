@@ -14,4 +14,6 @@ public class GatewayConfig {
                 .route("user-service", r -> r.path("/api/users/**").uri("lb://USER-SERVICE"))
                 .build();
     }
+
+
 }

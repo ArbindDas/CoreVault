@@ -2,6 +2,16 @@ spring:
   application:
     name: USER-SERVICE
 
+  data:
+    redis:
+      host: redis  # Use Docker service name instead of localhost
+      port: 6379
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 
   datasource:
     url: ${SPRING_DATASOURCE_URL}
@@ -25,13 +35,41 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
     open-in-view: false
 
-# JWT CONFIGURATION FOR KEYCLOAK
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/microservices-realm}
+# application.yml
+logging:
+  level:
+    # Spring Security logging
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.security.web: DEBUG
+    org.springframework.security.config: DEBUG
+
+    # Web logging
+    org.springframework.web: DEBUG
+    org.springframework.web.servlet: DEBUG
+
+    # Your application logging
+    com.JSR.user_service: DEBUG
+    com.JSR.user_service.utils.JwtUtil: DEBUG
+    com.JSR.user_service.service.UserProfileServiceImpl: DEBUG
+    com.JSR.user_service.controller.UserProfileController: DEBUG
+
+    # HTTP Client logging (if using RestTemplate/WebClient)
+    org.apache.http: DEBUG
+    org.springframework.web.client: DEBUG
+
+    # Database logging (optional)
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+  file:
+    name: logs/user-service.log
+
 
 server:
   port:

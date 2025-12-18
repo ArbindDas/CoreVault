@@ -16,7 +16,7 @@ public interface UserProfileService {
      UserProfileDTO createProfileFromToken();
 
 //     UserProfileDTO updateProfile(String authHeader , UserProfileDTO profileDTO);
-UserProfileDTO updateProfile(UserProfileDTO profileDTO);
+    UserProfileDTO updateProfile(UserProfileDTO profileDTO);
 
     @Transactional
     UserProfileDTO addAddress(AddressDTO addressDTO);

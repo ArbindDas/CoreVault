@@ -3,12 +3,14 @@ package com.JSR.user_service.controller;
 import com.JSR.user_service.dto.AddressDTO;
 import com.JSR.user_service.dto.UserProfileDTO;
 import com.JSR.user_service.service.UserProfileService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users")
+@Slf4j
 public class UserProfileController {
 
 
@@ -20,15 +22,47 @@ public class UserProfileController {
 
     @GetMapping("/me")
     public ResponseEntity<UserProfileDTO> getMyProfile() {
+        log.info("=== GET /api/users/me endpoint called ===");
+        log.debug("Request headers and details can be logged here");
+
         try {
             UserProfileDTO profile = userProfileService.getProfileFromToken();
-            return profile != null ?
-                    ResponseEntity.ok(profile) :
-                    ResponseEntity.notFound().build();
+
+            if (profile != null) {
+                log.info("✅ Successfully retrieved profile for user: {}", profile.getFullName());
+                log.debug("Profile details: {}", profile);
+                return ResponseEntity.ok(profile);
+            } else {
+                log.warn("⚠️ Profile not found for authenticated user");
+                return ResponseEntity.notFound().build();
+            }
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            log.error("❌ Error in getMyProfile: {}", e.getMessage());
+            log.debug("Exception details:", e);
+
+            // Differentiate between authentication error and other errors
+            if (e.getMessage().contains("not authenticated")) {
+                log.error("❌ Authentication failed - no valid JWT token provided");
+
+            } else {
+                log.error("❌ Internal server error: {}", e.getMessage());
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.notFound().build();
         }
     }
+
+//    @GetMapping("/me")
+//    public ResponseEntity<UserProfileDTO> getMyProfile() {
+//        try {
+//            UserProfileDTO profile = userProfileService.getProfileFromToken();
+//            return profile != null ?
+//                    ResponseEntity.ok(profile) :
+//                    ResponseEntity.notFound().build();
+//        } catch (RuntimeException e) {
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+//        }
+//    }
 
     @PostMapping("/create")
     public ResponseEntity<UserProfileDTO> createProfile() {
