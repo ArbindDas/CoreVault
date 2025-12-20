@@ -9,15 +9,20 @@ import com.JSR.user_service.repository.UserProfileRepository;
 import com.JSR.user_service.service.UserProfileService;
 import com.JSR.user_service.utils.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional
 @Slf4j
+
 public class UserProfileServiceImpl implements UserProfileService {
 
 
@@ -58,97 +63,6 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .orElse(null);
     }
 
-    @Override
-    public UserProfileDTO createNewProfile(String keycloakUserId, String email, String fullName) {
-
-        // Check if profile already exists
-        if (userProfileRepository.existsByKeycloakUserId(keycloakUserId)) {
-            throw new RuntimeException("User profile already exists");
-        }
-
-        // Get username from JWT for default full name if not provided
-        String username = jwtUtil.getUsername();
-
-        // create a profile
-        UserProfile profile = UserProfile.builder()
-                .keycloakUserId(keycloakUserId)
-                .email(email)
-                .fullName(fullName !=null ? fullName : username)
-                .build();
-
-        UserProfile savedProfile = userProfileRepository.save(profile);
-
-        return convertToDTO(savedProfile);
-
-    }
-
-    @Transactional
-    @Override
-    public UserProfileDTO createProfileFromToken() {
-
-        // Get user info from JWT token using JwtUtil
-        String userId = jwtUtil.getUserId();
-        String email = jwtUtil.getEmail();
-        String username = jwtUtil.getUsername();
-
-        if (userId == null) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        // Check if profile already exists
-        if (userProfileRepository.existsByKeycloakUserId(userId)){
-            throw new RuntimeException("User profile already exists");
-        }
-
-        return createNewProfile(userId , email , username);
-
-    }
-
-    @Override
-    @Transactional
-    public UserProfileDTO updateProfile(UserProfileDTO profileDTO) {
-        // Get user ID from JWT token using JwtUtil
-        String userId = jwtUtil.getUserId();
-
-        if (userId == null) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        // Find existing profile
-        UserProfile existingProfile = userProfileRepository.findByKeycloakUserId(userId)
-                .orElseThrow(() -> new RuntimeException("User profile not found"));
-
-        // Update profile fields
-        if (profileDTO.getFullName() != null) {
-            existingProfile.setFullName(profileDTO.getFullName());
-        }
-        if (profileDTO.getPhoneNumber() != null) {
-            existingProfile.setPhoneNumber(profileDTO.getPhoneNumber());
-        }
-        if (profileDTO.getGender() != null) {
-            existingProfile.setGender(profileDTO.getGender());
-        }
-        if (profileDTO.getDateOfBirth() != null) {
-            existingProfile.setDateOfBirth(profileDTO.getDateOfBirth());
-        }
-        if (profileDTO.getProfileImageUrl() != null) {
-            existingProfile.setProfileImageUrl(profileDTO.getProfileImageUrl());
-        }
-        if (profileDTO.getPreferences() != null) {
-            existingProfile.setPreferences(profileDTO.getPreferences());
-        }
-
-        // Handle addresses update
-        if (profileDTO.getAddresses() != null && !profileDTO.getAddresses().isEmpty()) {
-            updateAddresses(existingProfile, profileDTO.getAddresses());
-        }
-
-        UserProfile updatedProfile = userProfileRepository.save(existingProfile);
-
-        return convertToDTO(updatedProfile);
-    }
-
-
 
     @Transactional
     protected void updateAddresses(UserProfile userProfile, List<AddressDTO> addressDTOs) {
@@ -164,113 +78,176 @@ public class UserProfileServiceImpl implements UserProfileService {
         userProfile.setAddresses(addresses);
     }
 
-    @Transactional
+
+
+
     @Override
-    public UserProfileDTO addAddress(AddressDTO addressDTO) {
-        String userId = jwtUtil.getUserId();
-
-        if (userId == null) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        UserProfile userProfile = userProfileRepository.findByKeycloakUserId(userId)
-                .orElseThrow(() -> new RuntimeException("User profile not found"));
-
-        // If this is the first address or marked as primary, set it as primary
-        if (addressDTO.getIsPrimary() == null || addressDTO.getIsPrimary()) {
-            // Set all existing addresses as non-primary
-            userProfile.getAddresses().forEach(address -> address.setIsPrimary(false));
-        }
-
-        Address newAddress = convertToAddressEntity(addressDTO, userProfile);
-        userProfile.getAddresses().add(newAddress);
-
-        UserProfile updatedProfile = userProfileRepository.save(userProfile);
-
-        return convertToDTO(updatedProfile);
-    }
-
     @Transactional
-    @Override
-    public UserProfileDTO updateAddress(Long addressId, AddressDTO addressDTO) {
-        String userId = jwtUtil.getUserId();
+    public UserProfileDTO createProfileWithAddress(@NonNull UserProfileDTO profileDTO) {
+        log.info("=== START createProfileWithAddress ===");
+        log.info("Received DTO: {}", profileDTO);
 
-        if (userId == null) {
-            throw new RuntimeException("User not authenticated");
+        // Get user ID from JWT token instead of request body
+        String keycloakUserId = jwtUtil.getUserId();
+        String email = jwtUtil.getEmail();
+        String fullName = jwtUtil.getFullName();
+
+        log.info("Creating profile for user: {}, email: {}, name: {}",
+                keycloakUserId, email, fullName);
+
+        // Validate extracted data
+
+        // Validate extracted data
+        if (keycloakUserId == null || keycloakUserId.isEmpty()) {
+            log.error("❌ Keycloak User ID is null or empty");
+            throw new IllegalArgumentException("Keycloak User ID not found in token");
         }
 
-        UserProfile userProfile = userProfileRepository.findByKeycloakUserId(userId)
-                .orElseThrow(() -> new RuntimeException("User profile not found"));
+        if (email == null || email.isEmpty()) {
+            log.error("❌ Email is null or empty");
+            throw new IllegalArgumentException("Email not found in token");
+        }
 
-        Address existingAddress = addressRepository.findByIdAndUserProfile(addressId, userProfile)
-                .orElseThrow(() -> new RuntimeException("Address not found"));
+        if (fullName == null || fullName.isEmpty()) {
+            log.error("❌ Full name is null or empty");
+            throw new IllegalArgumentException("Full name not found in token");
+        }
 
-        // Update address fields
-        if (addressDTO.getType() != null) {
-            existingAddress.setType(addressDTO.getType());
+        // Check if profile already exists - WITH DETAILED LOGGING
+        log.info("Checking if profile exists for Keycloak User ID: '{}'", keycloakUserId);
+        Optional<UserProfile> existingByUserId = userProfileRepository.findByKeycloakUserId(keycloakUserId);
+        log.info("Profile exists by User ID: {}", existingByUserId.isPresent());
+
+        log.info("Checking if profile exists for Email: '{}'", email);
+        Optional<UserProfile> existingByEmail = userProfileRepository.findByEmail(email);
+        log.info("Profile exists by Email: {}", existingByEmail.isPresent());
+
+
+        if (existingByUserId.isPresent()) {
+            UserProfile existing = existingByUserId.get();
+            log.error("❌ Profile already exists! ID: {}, Email: {}, Name: {}",
+                    existing.getId(), existing.getEmail(), existing.getFullName());
+            throw new RuntimeException("User profile already exists for this Keycloak user ID");
         }
-        if (addressDTO.getAddressLine1() != null) {
-            existingAddress.setAddressLine1(addressDTO.getAddressLine1());
+
+
+        if (existingByEmail.isPresent()) {
+            UserProfile existing = existingByEmail.get();
+            log.error("❌ Profile with this email already exists! ID: {}, Email: {}, Name: {}",
+                    existing.getId(), existing.getEmail(), existing.getFullName());
+            throw new RuntimeException("User profile already exists for this email");
         }
-        if (addressDTO.getAddressLine2() != null) {
-            existingAddress.setAddressLine2(addressDTO.getAddressLine2());
-        }
-        if (addressDTO.getCity() != null) {
-            existingAddress.setCity(addressDTO.getCity());
-        }
-        if (addressDTO.getState() != null) {
-            existingAddress.setState(addressDTO.getState());
-        }
-        if (addressDTO.getCountry() != null) {
-            existingAddress.setCountry(addressDTO.getCountry());
-        }
-        if (addressDTO.getZipCode() != null) {
-            existingAddress.setZipCode(addressDTO.getZipCode());
-        }
-        if (addressDTO.getIsPrimary() != null) {
-            // If setting as primary, update other addresses
-            if (addressDTO.getIsPrimary()) {
-                userProfile.getAddresses().forEach(address -> {
-                    if (!address.getId().equals(addressId)) {
-                        address.setIsPrimary(false);
+        log.info("✅ No existing profile found. Proceeding with creation...");
+
+        // Use token data for critical fields, allow updates from DTO for other fields
+        UserProfile userProfile = UserProfile.builder()
+                .keycloakUserId(keycloakUserId)  // From token
+                .email(email)                    // From token
+                .fullName(fullName)              // From token
+                .phoneNumber(profileDTO.getPhoneNumber())
+                .gender(profileDTO.getGender())
+                .dateOfBirth(profileDTO.getDateOfBirth())
+                .profileImageUrl(profileDTO.getProfileImageUrl())
+                .preferences(profileDTO.getPreferences())
+                .createdAt(LocalDateTime.now())
+                .addresses(new ArrayList<>()) // ← IMPORTANT: Initialize empty list
+                .build();
+
+        // Save user profile first
+        UserProfile savedProfile = userProfileRepository.save(userProfile);
+        log.info("User profile created with ID: {}", savedProfile.getId());
+
+        // Process addresses if provided
+        if (profileDTO.getAddresses() != null && !profileDTO.getAddresses().isEmpty()) {
+            log.info("Processing {} addresses for user profile", profileDTO.getAddresses().size());
+
+            boolean hasPrimary = false;
+
+            for (AddressDTO addressDTO : profileDTO.getAddresses()) {
+                // Validate address
+                validateAddress(addressDTO);
+
+                // Create address entity
+                Address address = Address.builder()
+                        .type(addressDTO.getType())
+                        .addressLine1(addressDTO.getAddressLine1())
+                        .addressLine2(addressDTO.getAddressLine2())
+                        .city(addressDTO.getCity())
+                        .state(addressDTO.getState())
+                        .country(addressDTO.getCountry())
+                        .zipCode(addressDTO.getZipCode())
+                        .userProfile(savedProfile)
+                        .build();
+
+                // Handle primary address logic
+                Boolean isPrimary = addressDTO.getIsPrimary();
+                if (isPrimary == null) {
+                    // If not specified and no primary exists yet, set as primary
+                    address.setIsPrimary(!hasPrimary);
+                    if (!hasPrimary) {
+                        hasPrimary = true;
                     }
-                });
+                } else if (isPrimary) {
+                    if (hasPrimary) {
+                        throw new IllegalArgumentException("Only one address can be marked as primary");
+                    }
+                    address.setIsPrimary(true);
+                    hasPrimary = true;
+                } else {
+                    address.setIsPrimary(false);
+                }
+
+                // Save address
+                addressRepository.save(address);
+                savedProfile.getAddresses().add(address);
+                log.info("Address added: {}, City: {}", address.getAddressLine1(), address.getCity());
             }
-            existingAddress.setIsPrimary(addressDTO.getIsPrimary());
+
+            // If no address was marked as primary and addresses exist, mark first one as primary
+            if (!hasPrimary && !savedProfile.getAddresses().isEmpty()) {
+                savedProfile.getAddresses().get(0).setIsPrimary(true);
+                addressRepository.save(savedProfile.getAddresses().get(0));
+                log.info("Marked first address as primary");
+            }
         }
 
-        addressRepository.save(existingAddress);
-
-        return convertToDTO(userProfile);
+        // Return the created profile with addresses
+        return convertToDTO(savedProfile);
     }
 
 
-    @Transactional
-    @Override
-    public void deleteAddress(Long addressId) {
-        String userId = jwtUtil.getUserId();
-
-        if (userId == null) {
-            throw new RuntimeException("User not authenticated");
+    // Helper method for address validation
+    private void validateAddress(AddressDTO addressDTO) {
+        if (addressDTO.getAddressLine1() == null || addressDTO.getAddressLine1().isEmpty()) {
+            throw new IllegalArgumentException("Address line 1 is required");
         }
 
-        UserProfile userProfile = userProfileRepository.findByKeycloakUserId(userId)
-                .orElseThrow(() -> new RuntimeException("User profile not found"));
+        if (addressDTO.getCity() == null || addressDTO.getCity().isEmpty()) {
+            throw new IllegalArgumentException("City is required");
+        }
 
-        Address address = addressRepository.findByIdAndUserProfile(addressId, userProfile)
-                .orElseThrow(() -> new RuntimeException("Address not found"));
+        if (addressDTO.getCountry() == null || addressDTO.getCountry().isEmpty()) {
+            throw new IllegalArgumentException("Country is required");
+        }
 
-        addressRepository.delete(address);
+        // Optional: Add country-specific validation
+        if ("India".equalsIgnoreCase(addressDTO.getCountry())) {
+            validateIndianAddress(addressDTO);
+        }
+    }
+    // Optional: Indian address validation
+    private void validateIndianAddress(AddressDTO addressDTO)   {
+        if (addressDTO.getState() == null || addressDTO.getState().isEmpty()) {
+            throw new IllegalArgumentException("State is required for Indian addresses");
+        }
 
-        // If deleted address was primary, set another address as primary
-        if (address.getIsPrimary() && !userProfile.getAddresses().isEmpty()) {
-            userProfile.getAddresses().stream()
-                    .filter(a -> !a.getId().equals(addressId))
-                    .findFirst()
-                    .ifPresent(newPrimary -> {
-                        newPrimary.setIsPrimary(true);
-                        addressRepository.save(newPrimary);
-                    });
+        if (addressDTO.getZipCode() == null || addressDTO.getZipCode().isEmpty()) {
+            throw new IllegalArgumentException("PIN code is required for Indian addresses");
+        }
+
+        // Validate PIN code format (6 digits)
+        if (!addressDTO.getZipCode().matches("^[1-9][0-9]{5}$")) {
+            throw new IllegalArgumentException("Invalid Indian PIN code format. Must be 6 digits");
         }
     }
 
@@ -307,6 +284,10 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .build();
 
     }
+
+
+
+
     private Address convertToAddressEntity(AddressDTO dto, UserProfile userProfile) {
         return Address.builder()
                 .type(dto.getType())

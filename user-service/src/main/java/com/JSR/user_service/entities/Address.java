@@ -40,8 +40,7 @@ public class Address {
     @Column(name = "zip_code")
     private String zipCode;
 
-    @Getter
-    @Setter
+
     @Column(name = "is_primary")
     private Boolean isPrimary;
 

@@ -1,12 +1,12 @@
 package com.JSR.user_service.entities;
-
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -47,6 +47,7 @@ public class UserProfile {
     @Column(name = "preferences")
     private String preferences;
 
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @Column(name = "created_at",nullable = false ,updatable = false)
     private LocalDateTime createdAt;
 
@@ -57,9 +58,11 @@ public class UserProfile {
         }
     }
 
+    // FIX: Initialize the addresses list
+    @Builder.Default
     @OneToMany(mappedBy = "userProfile", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
-    private List<Address> addresses;
+    private List<Address> addresses = new ArrayList<>();
 
 
 }

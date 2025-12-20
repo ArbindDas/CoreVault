@@ -11,19 +11,11 @@ public interface UserProfileService {
      UserProfileDTO getProfileFromToken();
 
 
-     UserProfileDTO createNewProfile(String keycloakUserId , String email , String fullName);
 
-     UserProfileDTO createProfileFromToken();
+//     UserProfileDTO createProfileFromToken();
 
-//     UserProfileDTO updateProfile(String authHeader , UserProfileDTO profileDTO);
-    UserProfileDTO updateProfile(UserProfileDTO profileDTO);
 
+    // NEW METHOD: Create profile with address details
     @Transactional
-    UserProfileDTO addAddress(AddressDTO addressDTO);
-
-    @Transactional
-    UserProfileDTO updateAddress(Long addressId, AddressDTO addressDTO);
-
-    @Transactional
-    void deleteAddress(Long addressId);
+    UserProfileDTO createProfileWithAddress(UserProfileDTO profileDTO);
 }

@@ -109,6 +109,50 @@ public class JwtUtil {
         return null;
     }
 
+
+    public String getFullName() {
+        log.debug("=== JwtUtil.getFullName() called ===");
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        logAuthenticationDetails(authentication);
+
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt) {
+            Jwt jwt = (Jwt) authentication.getPrincipal();
+
+            // Try to get from 'name' claim first
+            String name = jwt.getClaim("name");
+            if (name != null && !name.isEmpty()) {
+                log.info("✅ Extracted full name from JWT (name claim): {}", name);
+                return name;
+            }
+
+            // Fallback: combine given_name and family_name
+            String givenName = jwt.getClaim("given_name");
+            String familyName = jwt.getClaim("family_name");
+
+            if (givenName != null && familyName != null) {
+                String fullName = givenName + " " + familyName;
+                log.info("✅ Extracted full name from JWT (given_name + family_name): {}", fullName);
+                return fullName;
+            } else if (givenName != null) {
+                log.info("✅ Extracted name from JWT (given_name): {}", givenName);
+                return givenName;
+            } else if (familyName != null) {
+                log.info("✅ Extracted name from JWT (family_name): {}", familyName);
+                return familyName;
+            }
+
+            // Final fallback: use preferred_username
+            String username = jwt.getClaim("preferred_username");
+            log.info("⚠️ Using preferred_username as full name: {}", username);
+            return username;
+        }
+
+        log.warn("⚠️ Cannot extract full name - no JWT token found");
+        return null;
+    }
+
+
     private void logAuthenticationDetails(Authentication authentication) {
         if (authentication == null) {
             log.error("❌ Authentication object is NULL");
