@@ -6,15 +6,11 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-// Login DTOs
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginRequest {
-    @NotBlank(message = "Username or email is required")
-    private String username;
-
-    @NotBlank(message = "Password is required")
-    private String password;
+public class RefreshTokenRequest {
+    @NotBlank(message = "Refresh token is required")
+    private String refreshToken;
 }

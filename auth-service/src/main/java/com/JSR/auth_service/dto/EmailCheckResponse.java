@@ -9,9 +9,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SignupResponse {
-    private String userId;
+public class EmailCheckResponse {
     private String email;
-    private String fullName;
-    private boolean requiresEmailVerification;
+    private boolean exists;
+    private String message;
 }

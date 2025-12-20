@@ -1,0 +1,72 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.0)
+
+2025-12-20 15:00:57 [main] INFO  c.J.a.AuthServiceApplication - Starting AuthServiceApplication v0.0.1-SNAPSHOT using Java 25.0.1 with PID 1 (/app.jar started by root in /)
+2025-12-20 15:00:57 [main] DEBUG c.J.a.AuthServiceApplication - Running with Spring Boot v4.0.0, Spring v7.0.1
+2025-12-20 15:00:57 [main] INFO  c.J.a.AuthServiceApplication - The following 1 profile is active: "docker"
+2025-12-20 15:00:59 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Multiple Spring Data modules found, entering strict repository configuration mode
+2025-12-20 15:00:59 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2025-12-20 15:00:59 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 40 ms. Found 0 Redis repository interfaces.
+2025-12-20 15:01:00 [main] INFO  o.s.cloud.context.scope.GenericScope - BeanFactory id=70c377a5-31cf-3b90-90fe-a63f613787df
+2025-12-20 15:01:01 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat initialized with port 8081 (http)
+2025-12-20 15:01:01 [main] INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+2025-12-20 15:01:01 [main] INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/11.0.14]
+2025-12-20 15:01:01 [main] INFO  o.s.b.w.c.s.WebApplicationContextInitializer - Root WebApplicationContext: initialization completed in 4519 ms
+2025-12-20 15:01:02 [main] DEBUG o.s.w.f.ServerHttpObservationFilter - Filter 'webMvcObservationFilter' configured for use
+2025-12-20 15:01:03 [main] DEBUG o.s.s.c.a.a.c.AuthenticationConfiguration$DefaultPasswordEncoderAuthenticationManagerBuilder - No authenticationProviders and no parentAuthenticationManager defined. Returning null.
+2025-12-20 15:01:03 [main] DEBUG o.s.s.web.DefaultSecurityFilterChain - Will secure any request with filters: DisableEncodeUrlFilter, WebAsyncManagerIntegrationFilter, SecurityContextHolderFilter, HeaderWriterFilter, LogoutFilter, RequestCacheAwareFilter, SecurityContextHolderAwareRequestFilter, AnonymousAuthenticationFilter, SessionManagementFilter, ExceptionTranslationFilter, AuthorizationFilter
+2025-12-20 15:01:04 [main] DEBUG o.s.w.s.m.m.a.RequestMappingHandlerMapping - 18 mappings in 'requestMappingHandlerMapping'
+2025-12-20 15:01:04 [main] DEBUG o.s.w.s.h.SimpleUrlHandlerMapping - Patterns [/webjars/**, /**, /swagger-ui*/*swagger-initializer.js, /swagger-ui*/**] in 'resourceHandlerMapping'
+2025-12-20 15:01:04 [main] DEBUG o.s.w.s.m.m.a.RequestMappingHandlerAdapter - ControllerAdvice beans: 0 @ModelAttribute, 0 @InitBinder, 1 RequestBodyAdvice, 1 ResponseBodyAdvice
+2025-12-20 15:01:04 [main] DEBUG o.s.w.s.m.m.a.ExceptionHandlerExceptionResolver - ControllerAdvice beans: 2 @ExceptionHandler, 1 ResponseBodyAdvice
+2025-12-20 15:01:05 [main] INFO  o.s.c.n.e.c.DiscoveryClientOptionalArgsConfiguration - Eureka HTTP Client uses RestClient.
+2025-12-20 15:01:05 [main] WARN  o.s.c.l.c.LoadBalancerCacheAutoConfiguration$LoadBalancerCaffeineWarnLogger - Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2025-12-20 15:01:05 [main] INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 5 endpoints beneath base path '/manage'
+2025-12-20 15:01:05 [main] INFO  o.s.c.n.eureka.InstanceInfoFactory - Setting initial instance status as: STARTING
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Initializing Eureka in region us-east-1
+2025-12-20 15:01:05 [main] INFO  c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Disable delta property : false
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Single vip registry refresh property : null
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Force full registry fetch : false
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Application is null : false
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Registered Applications size is zero : true
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Application version is -1: true
+2025-12-20 15:01:05 [main] INFO  c.netflix.discovery.DiscoveryClient - Getting all instance registry info from the eureka server
+2025-12-20 15:01:06 [main] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:01:06 [main] INFO  c.netflix.discovery.DiscoveryClient - The response status is 200
+2025-12-20 15:01:06 [main] INFO  c.netflix.discovery.DiscoveryClient - Starting heartbeat executor: renew interval is: 30
+2025-12-20 15:01:06 [main] INFO  c.n.discovery.InstanceInfoReplicator - InstanceInfoReplicator onDemand update allowed rate per min is 4
+2025-12-20 15:01:06 [main] INFO  c.netflix.discovery.DiscoveryClient - Discovery Client initialized at timestamp 1766242866162 with initial instances count: 0
+2025-12-20 15:01:06 [main] INFO  o.s.c.n.e.s.EurekaServiceRegistry - Registering application AUTH-SERVICE with eureka with status UP
+2025-12-20 15:01:06 [main] INFO  c.netflix.discovery.DiscoveryClient - Saw local status change event StatusChangeEvent [timestamp=1766242866169, current=UP, previous=STARTING]
+2025-12-20 15:01:06 [DiscoveryClient-InstanceInfoReplicator-%d] INFO  c.netflix.discovery.DiscoveryClient - DiscoveryClient_AUTH-SERVICE/5959243d895c:auth-service:8081: registering service...
+2025-12-20 15:01:06 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat started on port 8081 (http) with context path '/auth'
+2025-12-20 15:01:06 [main] INFO  o.s.c.n.e.s.EurekaAutoServiceRegistration - Updating port to 8081
+2025-12-20 15:01:06 [DiscoveryClient-InstanceInfoReplicator-%d] DEBUG o.s.web.client.DefaultRestClient - Writing [InstanceInfo [instanceId = 5959243d895c:auth-service:8081, appName = AUTH-SERVICE, hostName = 172.18.0.7, status = UP, ipAddr = 172.18.0.7, port = 8081, securePort = 443, dataCenterInfo = com.netflix.appinfo.MyDataCenterInfo@6fb298e0] as "application/json" with org.springframework.http.converter.json.MappingJackson2HttpMessageConverter
+2025-12-20 15:01:06 [main] INFO  c.J.a.AuthServiceApplication - Started AuthServiceApplication in 10.118 seconds (process running for 11.38)
+2025-12-20 15:01:06 [DiscoveryClient-InstanceInfoReplicator-%d] INFO  c.netflix.discovery.DiscoveryClient - DiscoveryClient_AUTH-SERVICE/5959243d895c:auth-service:8081 - registration status: 204
+2025-12-20 15:01:06 [main] WARN  o.s.c.events.SpringDocAppInitializer - SpringDoc /api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
+2025-12-20 15:01:06 [main] WARN  o.s.c.events.SpringDocAppInitializer - SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - Disable delta property : false
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - Single vip registry refresh property : null
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - Force full registry fetch : false
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - Application is null : false
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - Registered Applications size is zero : true
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - Application version is -1: false
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - Getting all instance registry info from the eureka server
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:01:36 [DiscoveryClient-CacheRefreshExecutor-%d] INFO  c.netflix.discovery.DiscoveryClient - The response status is 200
+2025-12-20 15:02:06 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:02:36 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:03:06 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:03:36 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:04:06 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:04:36 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]
+2025-12-20 15:05:06 [DiscoveryClient-CacheRefreshExecutor-%d] DEBUG o.s.web.client.DefaultRestClient - Reading to [com.netflix.discovery.shared.Applications]

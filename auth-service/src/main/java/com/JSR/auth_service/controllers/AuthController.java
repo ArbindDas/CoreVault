@@ -1,440 +1,518 @@
-package com.JSR.auth_service.controllers;
+    package com.JSR.auth_service.controllers;
 
-import com.JSR.auth_service.Exception.UserNotFoundException;
-import com.JSR.auth_service.dto.*;
-import com.JSR.auth_service.services.AuthService;
-import com.JSR.auth_service.services.RateLimitService;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.DisabledException;
-import org.springframework.web.ErrorResponse;
-import org.springframework.web.bind.annotation.*;
+    import com.JSR.auth_service.dto.*;
+    import com.JSR.auth_service.dto.ApiResponseWrapper;
+    import com.JSR.auth_service.services.KeycloakAuthService;
+    import com.JSR.auth_service.services.RateLimitService;
+    import io.github.bucket4j.Bucket;
+    import io.micrometer.core.instrument.MeterRegistry;
+    import io.swagger.v3.oas.annotations.Operation;
+    import io.swagger.v3.oas.annotations.media.Content;
+    import io.swagger.v3.oas.annotations.media.Schema;
+    import io.swagger.v3.oas.annotations.responses.ApiResponse;
+    import io.swagger.v3.oas.annotations.responses.ApiResponses;
+    import io.swagger.v3.oas.annotations.tags.Tag;
+    import jakarta.servlet.http.HttpServletRequest;
+    import jakarta.validation.Valid;
+    import lombok.RequiredArgsConstructor;
+    import lombok.extern.slf4j.Slf4j;
+    import org.springframework.http.HttpStatus;
+    import org.springframework.http.MediaType;
+    import org.springframework.http.ResponseEntity;
+    import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
+    import java.time.Duration;
+    import java.util.Collections;
+    import java.util.Date;
 
-@Slf4j
-@Tag(name = "Authentication", description = "Authentication and authorization endpoints")
-@CrossOrigin(
-        origins = "http://localhost:5173",
-        methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.OPTIONS },
-        allowCredentials = "true",
-        allowedHeaders = "*"
-)
-@RestController
-@RequestMapping("/api/v1/auth")
-public class AuthController {
+    @Slf4j
+    @Tag(name = "Authentication", description = "Authentication and authorization endpoints using Keycloak")
+    @RestController
+    @RequestMapping("/api/v1/auth")
+    public class AuthController {
 
-    // Use THESE constants (correct format)
-    private static final String AUTH_HEADER = "Authorization";
-    private static final String BEARER_PREFIX = "Bearer ";
+        private final KeycloakAuthService keycloakAuthService;
+        private final RateLimitService rateLimitService;
+        private final MeterRegistry meterRegistry;
 
 
-    private final RateLimitService rateLimitService;
-    private final MeterRegistry meterRegistry;
-    private final AuthService authService;
-
-    @Autowired
-    public AuthController(RateLimitService rateLimitService, MeterRegistry meterRegistry, AuthService authService) {
-        this.rateLimitService = rateLimitService;
-        this.meterRegistry = meterRegistry;
-        this.authService = authService;
-    }
-
-
-
-
-    // Helper method to get client IP
-    private String getClientIp(HttpServletRequest request) {
-        // Check for X-Forwarded-For header (common when behind proxy/load balancer)
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (xfHeader != null && !xfHeader.isEmpty()) {
-            // X-Forwarded-For can contain multiple IPs, the first one is the original client
-            return xfHeader.split(",")[0].trim();
+        public AuthController(KeycloakAuthService keycloakAuthService, RateLimitService rateLimitService, MeterRegistry meterRegistry) {
+            this.keycloakAuthService = keycloakAuthService;
+            this.rateLimitService = rateLimitService;
+            this.meterRegistry = meterRegistry;
         }
 
-        // Fallback to remote address
-        return request.getRemoteAddr();
-    }
 
-
-    @Operation(
-            summary = "Register new user",
-            description = "creates a new user account with provided details"
-    )
-
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "201",
-                    description = "User Created Successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = SignupRequest.class)
-                    )
-            ),
-
-            @ApiResponse(
-
-                    responseCode = "400",
-                    description = "Invalid input data",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = SignupRequest.class))
-            ),
-
-            @ApiResponse(
-                    responseCode = "409",
-                    description = "User Already exists",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = SignupRequest.class)
-                    )
-            ),
-
-            @ApiResponse(
-                    responseCode = "500",
-                    description = "internal server error",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = SignupRequest.class)
-                    )
-
-            )
-    })
-    @PostMapping(
-            value = "/signup",
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-
-    public ResponseEntity<ApiResponseWrapper<SignupResponse>> signup(
-            @Parameter(description = "User registration details ", required = true)
-            @Valid @RequestBody SignupRequest request,
-            HttpServletRequest httpRequest) {
-
-        log.info("Signup request received for email: {}", request.email());
-
-        try {
-            long startTime = System.currentTimeMillis();
-            SignupResponse signupResponse = authService.signup(request);
-
-            long processingTime = System.currentTimeMillis() - startTime;
-
-            log.info("User registered successfully: {} (took {} ms)",
-                    request.email(), processingTime);
-            ApiResponseWrapper<SignupResponse> responseWrapper = ApiResponseWrapper.success(
-                    signupResponse,  // Include the response data
-                    "User Registered successfully",
-                    HttpStatus.CREATED.value()
-            );
-
-            return ResponseEntity
-                    .status(HttpStatus.CREATED)
-                    .header("X-Processing-Time", String.valueOf(processingTime))
-                    .body(responseWrapper);
-
-        } catch (Exception e) {
-            log.error("Signup failed for email: {}, error: {}", request.email(), e.getMessage(), e);
-            throw e;
+        @GetMapping("/test")
+        public String test() {
+            return "Auth Service is working! Time: " + new Date();
         }
-    }
 
+        /**
+         * Signup - Create new user in Keycloak
+         */
+        @Operation(summary = "Register a new user",
+                description = "Creates a new user account in Keycloak and sends verification email")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "201", description = "User created successfully",
+                        content = @Content(schema = @Schema(implementation = SignupResponse.class))),
+                @ApiResponse(responseCode = "400", description = "Invalid input data"),
+                @ApiResponse(responseCode = "409", description = "User already exists"),
+                @ApiResponse(responseCode = "429", description = "Too many requests"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @PostMapping(value = "/signup", consumes = MediaType.APPLICATION_JSON_VALUE,
+                produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<SignupResponse>> signup(
+                @Valid @RequestBody SignupRequest signupRequest,
+                HttpServletRequest request) {
 
-    @Operation(
-            summary = "User Login",
-            description = "Authenticate user and returns JWT token"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Login successful",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = LoginResponse.class)
-                    )
-            ),
+            log.info("Signup request for email: {}", signupRequest.getEmail());
 
+            // Check rate limiting
+            String clientIp = getClientIp(request);
+            Bucket bucket = rateLimitService.resolveBucket(clientIp, "signup");
 
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Invalid credentials or input data",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = LoginResponse.class)
-                    )
-            ),
-
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication Failed",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = LoginResponse.class)
-                    )
-            ),
-
-            @ApiResponse(
-                    responseCode = "423",
-                    description = "Account locked",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "500",
-                    description = "Internal server error",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))
-            )
-    })
-
-    @PostMapping(value = "/signin",
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<ApiResponseWrapper<LoginResponse>> signin(
-            @Parameter(description = "User login credentials", required = true)
-            @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest
-    ) {
-        String clientIp = getClientIp(httpRequest);
-        String userAgent = httpRequest.getHeader("User-Agent");
-
-        log.info("Login attempt from ip {} for email: {}", clientIp, request.email());
-
-        try {
-            Long startTime = System.currentTimeMillis();
-
-            // 1️⃣ RATE LIMITING (at controller level - PRODUCTION BEST PRACTICE)
-            if (rateLimitService.isRateLimited("login:ip:" + clientIp, 100, Duration.ofMinutes(1))) {
-                meterRegistry.counter("auth.rate_limit.ip").increment();
-                log.warn("IP rate limit exceeded: {}", clientIp);
-                return createRateLimitResponse("Too many requests from this IP");
+            if (!bucket.tryConsume(1)) {
+                log.warn("Rate limit exceeded for signup from IP: {}", clientIp);
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponseWrapper.error("Too many signup attempts. Please try again later."));
             }
 
-            if (rateLimitService.isRateLimited("login:user:" + request.email(), 100, Duration.ofMinutes(1))) {
-                meterRegistry.counter("auth.rate_limit.user").increment();
-                log.warn("User rate limit exceeded: {}", request.email());
-                return createRateLimitResponse("Too many login attempts for this account");
+            try {
+                // Create user in Keycloak
+                SignupResponse response = keycloakAuthService.createUser(signupRequest);
+
+                // Track metrics
+                meterRegistry.counter("auth.signup.success").increment();
+
+                log.info("User created successfully: {}", signupRequest.getEmail());
+
+                return ResponseEntity.status(HttpStatus.CREATED)
+                        .body(ApiResponseWrapper.success(response,
+                                "Registration successful! Please check your email to verify your account."));
+
+            } catch (IllegalArgumentException e) {
+                meterRegistry.counter("auth.signup.validation_error").increment();
+                log.warn("Signup validation error: {}", e.getMessage());
+                return ResponseEntity.badRequest()
+                        .body(ApiResponseWrapper.error(e.getMessage()));
+
+            } catch (RuntimeException e) {
+                meterRegistry.counter("auth.signup.error").increment();
+                log.error("Signup failed for {}: {}", signupRequest.getEmail(), e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponseWrapper.error(e.getMessage()));
+
+            } catch (Exception e) {
+                meterRegistry.counter("auth.signup.error").increment();
+                log.error("Unexpected error during signup: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Registration failed. Please try again later."));
+            }
+        }
+
+        /**
+         * Login - Authenticate user with Keycloak
+         * Note: This is optional since frontend can login directly to Keycloak
+         */
+        @Operation(summary = "Login user",
+                description = "Authenticate user with Keycloak and get tokens")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Login successful",
+                        content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+                @ApiResponse(responseCode = "400", description = "Invalid credentials"),
+                @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                @ApiResponse(responseCode = "429", description = "Too many requests"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE,
+                produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<LoginResponse>> login(
+                @Valid @RequestBody LoginRequest loginRequest,
+                HttpServletRequest request) {
+
+            log.info("Login request for username: {}", loginRequest.getUsername());
+
+            // Check rate limiting
+            String clientIp = getClientIp(request);
+            Bucket bucket = rateLimitService.resolveBucket(clientIp, "login");
+
+            if (!bucket.tryConsume(1)) {
+                log.warn("Rate limit exceeded for login from IP: {}", clientIp);
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponseWrapper.error("Too many login attempts. Please try again later."));
             }
 
-            // 2️⃣ CALL PROTECTED SERVICE (with circuit breaker & timeout)
-            LoginResponse loginResponse = authService.protectedLogin(request);
+            try {
+                // Authenticate with Keycloak
+                LoginResponse response = keycloakAuthService.login(loginRequest);
 
-            // 3️⃣ CHECK FOR SERVICE FAILURE (from fallback)
-            if (loginResponse.token() == null) {
-                // Service was unavailable (circuit breaker fallback triggered)
-                meterRegistry.counter("auth.service_unavailable").increment();
+                // Track metrics
+                meterRegistry.counter("auth.login.success").increment();
 
-                ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
-                        "Authentication service is temporarily unavailable",
-                        HttpStatus.SERVICE_UNAVAILABLE.value(),
-                        "SERVICE_UNAVAILABLE"
-                );
+                log.info("Login successful for: {}", loginRequest.getUsername());
+
+                return ResponseEntity.ok(ApiResponseWrapper.success(response, "Login successful"));
+
+            } catch (IllegalArgumentException e) {
+                meterRegistry.counter("auth.login.invalid_credentials").increment();
+                log.warn("Login failed: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error("Invalid username or password"));
+
+            } catch (RuntimeException e) {
+                meterRegistry.counter("auth.login.error").increment();
+                log.error("Login error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error(e.getMessage()));
+
+            } catch (Exception e) {
+                meterRegistry.counter("auth.login.error").increment();
+                log.error("Unexpected login error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Login failed. Please try again later."));
+            }
+        }
+
+        /**
+         * Validate Token - Check if Keycloak token is valid
+         */
+        @Operation(summary = "Validate JWT token",
+                description = "Validate Keycloak JWT token and get user info")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Token is valid",
+                        content = @Content(schema = @Schema(implementation = TokenValidationResponse.class))),
+                @ApiResponse(responseCode = "401", description = "Token is invalid or expired"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @PostMapping(value = "/validate-token", produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<TokenValidationResponse>> validateToken(
+                @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error("Missing or invalid Authorization header"));
+            }
+
+            String token = authHeader.substring(7);
+
+            try {
+                TokenValidationResponse response = keycloakAuthService.validateToken(token);
+
+                meterRegistry.counter("auth.token.validation.success").increment();
+
+                return ResponseEntity.ok(ApiResponseWrapper.success(response, "Token is valid"));
+
+            } catch (RuntimeException e) {
+                meterRegistry.counter("auth.token.validation.failed").increment();
+                log.warn("Token validation failed: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error("Invalid or expired token"));
+
+            } catch (Exception e) {
+                meterRegistry.counter("auth.token.validation.error").increment();
+                log.error("Token validation error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Token validation failed"));
+            }
+        }
+
+        /**
+         * Logout - Invalidate Keycloak token
+         */
+        @Operation(summary = "Logout user",
+                description = "Invalidate Keycloak token (logout from all devices if specified)")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Logout successful"),
+                @ApiResponse(responseCode = "401", description = "Invalid token"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @PostMapping(value = "/logout", produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<Void>> logout(
+                @RequestHeader("Authorization") String authHeader,
+                @RequestParam(value = "allDevices", defaultValue = "false") boolean allDevices) {
+
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error("Missing or invalid Authorization header"));
+            }
+
+            String token = authHeader.substring(7);
+
+            try {
+                keycloakAuthService.logout(token, allDevices);
+
+                meterRegistry.counter("auth.logout.success").increment();
+
+                return ResponseEntity.ok(ApiResponseWrapper.success(null,
+                        allDevices ? "Logged out from all devices" : "Logged out successfully"));
+
+            } catch (RuntimeException e) {
+                meterRegistry.counter("auth.logout.error").increment();
+                log.warn("Logout failed: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error("Logout failed: " + e.getMessage()));
+
+            } catch (Exception e) {
+                meterRegistry.counter("auth.logout.error").increment();
+                log.error("Logout error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Logout failed"));
+            }
+        }
+
+        /**
+         * Forgot Password - Send password reset email
+         */
+        @Operation(summary = "Forgot password",
+                description = "Send password reset email to user")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Password reset email sent"),
+                @ApiResponse(responseCode = "404", description = "User not found"),
+                @ApiResponse(responseCode = "429", description = "Too many requests"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @PostMapping(value = "/forgot-password", consumes = MediaType.APPLICATION_JSON_VALUE,
+                produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<Void>> forgotPassword(
+                @Valid @RequestBody ForgotPasswordRequest forgotPasswordRequest,
+                HttpServletRequest request) {
+
+            log.info("Forgot password request for email: {}", forgotPasswordRequest.getEmail());
+
+            // Check rate limiting
+            String clientIp = getClientIp(request);
+            Bucket bucket = rateLimitService.resolveBucket(clientIp, "forgot-password");
+
+            if (!bucket.tryConsume(1)) {
+                log.warn("Rate limit exceeded for forgot-password from IP: {}", clientIp);
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponseWrapper.error("Too many password reset attempts. Please try again later."));
+            }
+
+            try {
+                keycloakAuthService.sendPasswordResetEmail(forgotPasswordRequest.getEmail());
+
+                meterRegistry.counter("auth.forgot_password.success").increment();
+
+                return ResponseEntity.ok(ApiResponseWrapper.success(null,
+                        "Password reset email sent. Please check your inbox."));
+
+            } catch (RuntimeException e) {
+                meterRegistry.counter("auth.forgot_password.error").increment();
+                log.warn("Forgot password failed: {}", e.getMessage());
+
+                // Don't reveal if user exists or not (security)
+                return ResponseEntity.ok(ApiResponseWrapper.success(null,
+                        "If an account exists with this email, a password reset link has been sent."));
+
+            } catch (Exception e) {
+                meterRegistry.counter("auth.forgot_password.error").increment();
+                log.error("Forgot password error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Failed to send password reset email"));
+            }
+        }
+
+        /**
+         * Resend Verification Email
+         */
+        @Operation(summary = "Resend verification email",
+                description = "Resend email verification link to user")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Verification email sent"),
+                @ApiResponse(responseCode = "404", description = "User not found"),
+                @ApiResponse(responseCode = "429", description = "Too many requests"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @PostMapping(value = "/resend-verification", consumes = MediaType.APPLICATION_JSON_VALUE,
+                produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<Void>> resendVerification(
+                @Valid @RequestBody ResendVerificationRequest resendRequest,
+                HttpServletRequest request) {
+
+            log.info("Resend verification request for email: {}", resendRequest.getEmail());
+
+            // Check rate limiting
+            String clientIp = getClientIp(request);
+            Bucket bucket = rateLimitService.resolveBucket(clientIp, "resend-verification");
+
+            if (!bucket.tryConsume(1)) {
+                log.warn("Rate limit exceeded for resend-verification from IP: {}", clientIp);
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponseWrapper.error("Too many verification email requests. Please try again later."));
+            }
+
+            try {
+                keycloakAuthService.resendVerificationEmail(resendRequest.getEmail());
+
+                meterRegistry.counter("auth.resend_verification.success").increment();
+
+                return ResponseEntity.ok(ApiResponseWrapper.success(null,
+                        "Verification email sent successfully."));
+
+            } catch (RuntimeException e) {
+                meterRegistry.counter("auth.resend_verification.error").increment();
+                log.warn("Resend verification failed: {}", e.getMessage());
+
+                // Don't reveal if user exists or not
+                return ResponseEntity.ok(ApiResponseWrapper.success(null,
+                        "If an account exists with this email, a verification email has been sent."));
+
+            } catch (Exception e) {
+                meterRegistry.counter("auth.resend_verification.error").increment();
+                log.error("Resend verification error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Failed to send verification email"));
+            }
+        }
+
+        /**
+         * Health Check - Verify Keycloak connection
+         */
+        @Operation(summary = "Auth service health check",
+                description = "Check if auth service and Keycloak are operational")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Service is healthy"),
+                @ApiResponse(responseCode = "503", description = "Service unavailable")
+        })
+        @GetMapping("/health")
+        public ResponseEntity<ApiResponseWrapper<HealthCheckResponse>> healthCheck() {
+            try {
+                HealthCheckResponse response = keycloakAuthService.healthCheck();
+
+                if (response.isKeycloakHealthy()) {
+                    return ResponseEntity.ok(ApiResponseWrapper.success(response, "Auth service is healthy"));
+                } else {
+                    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                            .body(ApiResponseWrapper.error(response, "Keycloak is unavailable"));
+                }
+
+            } catch (Exception e) {
+                log.error("Health check failed: {}", e.getMessage(), e);
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .header("Retry-After", "30")
-                        .body(errorWrapper);
+                        .body(ApiResponseWrapper.error("Auth service is unavailable"));
+            }
+        }
+
+        /**
+         * Get User Info - Get user details from Keycloak
+         */
+        @Operation(summary = "Get user info",
+                description = "Get user information from Keycloak using JWT token")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "User info retrieved",
+                        content = @Content(schema = @Schema(implementation = UserInfoResponse.class))),
+                @ApiResponse(responseCode = "401", description = "Invalid token"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @GetMapping(value = "/user-info", produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<UserInfoResponse>> getUserInfo(
+                @RequestHeader("Authorization") String authHeader) {
+
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error("Missing or invalid Authorization header"));
             }
 
-            Long processingTime = System.currentTimeMillis() - startTime;
+            String token = authHeader.substring(7);
 
-            // 4️⃣ SUCCESS - Log metrics
-            meterRegistry.counter("auth.login.success").increment();
-            meterRegistry.timer("auth.login.duration").record(processingTime, TimeUnit.MILLISECONDS);
+            try {
+                UserInfoResponse response = keycloakAuthService.getUserInfo(token);
 
-            log.info("Successfully login for user {} from ip {} (took {}ms)",
-                    request.email(), clientIp, processingTime);
+                return ResponseEntity.ok(ApiResponseWrapper.success(response, "User info retrieved successfully"));
 
-            ApiResponseWrapper<LoginResponse> responseWrapper = ApiResponseWrapper.success(
-                    loginResponse,
-                    "Login successful",
-                    HttpStatus.OK.value()
-            );
+            } catch (RuntimeException e) {
+                log.warn("Get user info failed: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponseWrapper.error("Invalid or expired token"));
 
-            return ResponseEntity.ok()
-                    .header("X-Processing-Time", String.valueOf(processingTime))
-                    .header("Authorization", "Bearer " + loginResponse.token())
-                    .header("Access-Control-Expose-Headers", "Authorization, X-Processing-Time")
-                    .body(responseWrapper);
+            } catch (Exception e) {
+                log.error("Get user info error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Failed to get user info"));
+            }
+        }
 
-        } catch (UserNotFoundException | BadCredentialsException e) {
-            // Authentication failures (NOT service failures)
-            meterRegistry.counter("auth.login.failure.authentication").increment();
+        /**
+         * Refresh Token - Get new access token using refresh token
+         */
+        @Operation(summary = "Refresh access token",
+                description = "Get new access token using refresh token")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Token refreshed successfully",
+                        content = @Content(schema = @Schema(implementation = TokenResponse.class))),
+                @ApiResponse(responseCode = "400", description = "Invalid refresh token"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @PostMapping(value = "/refresh-token", consumes = MediaType.APPLICATION_JSON_VALUE,
+                produces = MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<ApiResponseWrapper<TokenResponse>> refreshToken(
+                @Valid @RequestBody RefreshTokenRequest refreshRequest) {
 
-            log.warn("Authentication failed for {} from {}: {}",
-                    request.email(), clientIp, e.getMessage());
+            try {
+                TokenResponse response = keycloakAuthService.refreshToken(refreshRequest.getRefreshToken());
 
-            ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
-                    "Invalid email or password",
-                    HttpStatus.UNAUTHORIZED.value(),
-                    "AUTHENTICATION_FAILED"
-            );
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorWrapper);
+                meterRegistry.counter("auth.token.refresh.success").increment();
 
-        } catch (DisabledException e) {
-            // Disabled account
-            meterRegistry.counter("auth.login.failure.disabled").increment();
+                return ResponseEntity.ok(ApiResponseWrapper.success(response, "Token refreshed successfully"));
 
-            ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
-                    "Account is disabled",
-                    HttpStatus.FORBIDDEN.value(),
-                    "ACCOUNT_DISABLED"
-            );
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorWrapper);
+            } catch (RuntimeException e) {
+                meterRegistry.counter("auth.token.refresh.failed").increment();
+                log.warn("Token refresh failed: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponseWrapper.error("Invalid refresh token"));
 
-        } catch (Exception e) {
-            // Unexpected errors
-            meterRegistry.counter("auth.login.failure.unexpected").increment();
+            } catch (Exception e) {
+                meterRegistry.counter("auth.token.refresh.error").increment();
+                log.error("Token refresh error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Failed to refresh token"));
+            }
+        }
 
-            log.error("Unexpected login error for {} from {}: {}",
-                    request.email(), clientIp, e.getMessage(), e);
+        /**
+         * Check if email exists
+         */
+        @Operation(summary = "Check email availability",
+                description = "Check if email is already registered in Keycloak")
+        @ApiResponses(value = {
+                @ApiResponse(responseCode = "200", description = "Email check completed",
+                        content = @Content(schema = @Schema(implementation = EmailCheckResponse.class))),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+        })
+        @GetMapping("/check-email/{email}")
+        public ResponseEntity<ApiResponseWrapper<EmailCheckResponse>> checkEmail(
+                @PathVariable String email) {
 
-            ApiResponseWrapper<LoginResponse> errorWrapper = ApiResponseWrapper.error(
-                    "Internal server error",
-                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                    "INTERNAL_ERROR"
-            );
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorWrapper);
+            try {
+                boolean exists = keycloakAuthService.checkEmailExists(email);
+
+                EmailCheckResponse response = EmailCheckResponse.builder()
+                        .email(email)
+                        .exists(exists)
+                        .message(exists ? "Email already registered" : "Email available")
+                        .build();
+
+                return ResponseEntity.ok(ApiResponseWrapper.success(response,
+                        exists ? "Email already exists" : "Email is available"));
+
+            } catch (Exception e) {
+                log.error("Email check error: {}", e.getMessage(), e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponseWrapper.error("Failed to check email availability"));
+            }
+        }
+
+        /**
+         * Get client IP address
+         */
+        private String getClientIp(HttpServletRequest request) {
+            String xfHeader = request.getHeader("X-Forwarded-For");
+            if (xfHeader != null) {
+                return xfHeader.split(",")[0];
+            }
+            return request.getRemoteAddr();
         }
     }
-
-    private ResponseEntity<ApiResponseWrapper<LoginResponse>> createRateLimitResponse(String message) {
-        ApiResponseWrapper<LoginResponse> wrapper = ApiResponseWrapper.error(
-                message,
-                HttpStatus.TOO_MANY_REQUESTS.value(),
-                "RATE_LIMIT_EXCEEDED"
-        );
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .header("X-RateLimit-Limit", "10")
-                .header("X-RateLimit-Remaining", "0")
-                .body(wrapper);
-    }
-
-
-    @Operation(
-            summary = "User Logout",
-            description = "Invalidates the current user's JWT token"
-    )
-
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Logout successful",
-                    content = @Content(mediaType = "application/json")
-            ),
-
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Invalid Token or missing Authorization header",
-                    content = @Content(mediaType = "application/json")
-            ),
-
-
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "Unauthorized - Invalid or Expired token",
-                    content = @Content(mediaType = "application/json")
-            ),
-
-            @ApiResponse(
-                    responseCode = "500",
-                    description = "Internal server error",
-                    content = @Content(mediaType = "application/json")
-            )
-
-    })
-
-    @PostMapping(
-            value = "/logout",
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<ApiResponseWrapper<Void>> logout(
-            HttpServletRequest httpRequest,
-            @Parameter(description = "Logout from all devices ", required = false)
-            @RequestParam(value = "allDevices", defaultValue = "false") boolean logoutAllDevices
-    ) {
-        String clientIp = getClientIp(httpRequest);
-
-        // DON'T redefine these here - use the class-level constants
-        String authorizeHeader = httpRequest.getHeader(AUTH_HEADER);
-
-        log.info("Logout request from ip: {}, logoutAllDevices: {}", clientIp, logoutAllDevices);
-        log.info("Authorization header value: {}", authorizeHeader);
-
-        try {
-            Long startTime = System.currentTimeMillis();
-
-            // Check 1: Is header null?
-            if (authorizeHeader == null) {
-                log.error("Authorization header is NULL");
-                throw new BadCredentialsException("Missing Authorization header");
-            }
-
-            // Check 2: Does it start with Bearer? (case-sensitive!)
-            if (!authorizeHeader.startsWith(BEARER_PREFIX)) {
-                log.error("Authorization header doesn't start with '{}'. Header: '{}'", BEARER_PREFIX, authorizeHeader);
-                throw new BadCredentialsException("Invalid Authorization header format. Must start with 'Bearer '");
-            }
-
-            // Extract token
-            String token = authorizeHeader.substring(BEARER_PREFIX.length()).trim();
-
-            // Check 3: Is token empty?
-            if (token.isEmpty()) {
-                log.error("Token is empty after Bearer prefix");
-                throw new BadCredentialsException("Token cannot be empty");
-            }
-
-            log.info("Extracted token length: {}", token.length());
-            log.info("First 20 chars of token: {}", token.substring(0, Math.min(20, token.length())));
-
-            // Call service to handle logout
-            authService.logout(token, logoutAllDevices);
-
-            Long processingTime = System.currentTimeMillis() - startTime;
-            log.info("User logged out successfully from ip: {} (took {}ms)", clientIp, processingTime);
-
-            ApiResponseWrapper<Void> responseWrapper = ApiResponseWrapper.success(
-                    null,
-                    logoutAllDevices ? "Logged out from all devices successfully" : "Logged out successfully",
-                    HttpStatus.OK.value()
-            );
-
-            return ResponseEntity.ok()
-                    .header("X-Processing-Time", String.valueOf(processingTime))
-                    .body(responseWrapper);
-
-        } catch (BadCredentialsException e) {
-            log.warn("Authentication failed during logout from IP: {}, error: {}", clientIp, e.getMessage());
-
-            // Return proper error response
-            ApiResponseWrapper<Void> errorResponse = ApiResponseWrapper.error(
-                    e.getMessage(),
-                    HttpStatus.UNAUTHORIZED.value(),
-                    "AUTH_ERROR"
-            );
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
-
-        } catch (Exception e) {
-            log.error("Logout failed from IP: {}, error: {}", clientIp, e.getMessage(), e);
-
-            ApiResponseWrapper<Void> errorResponse = ApiResponseWrapper.error(
-                    "Logout failed: " + e.getMessage(),
-                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                    "LOGOUT_ERROR"
-            );
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
-
-
-
-}

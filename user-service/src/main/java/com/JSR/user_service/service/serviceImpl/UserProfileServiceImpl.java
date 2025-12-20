@@ -1,5 +1,4 @@
 package com.JSR.user_service.service.serviceImpl;
-
 import com.JSR.user_service.dto.AddressDTO;
 import com.JSR.user_service.dto.UserProfileDTO;
 import com.JSR.user_service.entities.Address;
@@ -47,7 +46,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         // get user info from token
         String userId = jwtUtil.getUserId();
         String email = jwtUtil.getEmail();
-        String username = jwtUtil.getUsername();
+        String username = jwtUtil.getFullName();
 
         log.debug("Extracted values - UserId: {}, Email: {}, Username: {}",
                 userId, email, username);
@@ -64,19 +63,6 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
 
-    @Transactional
-    protected void updateAddresses(UserProfile userProfile, List<AddressDTO> addressDTOs) {
-        // Remove existing addresses
-        addressRepository.deleteByUserProfile(userProfile);
-
-        // Add new addresses
-        List<Address> addresses = addressDTOs.stream()
-                .map(dto -> convertToAddressEntity(dto, userProfile))
-                .collect(Collectors.toList());
-
-        addressRepository.saveAll(addresses);
-        userProfile.setAddresses(addresses);
-    }
 
 
 

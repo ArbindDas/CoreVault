@@ -2,14 +2,14 @@ package com.JSR.auth_service;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-@EntityScan("com.JSR.auth_service.entities")
-@EnableJpaRepositories("com.JSR.auth_service.repository")
+@ComponentScan(basePackages = {"com.JSR.auth_service", "com.JSR"})  // ✅ Add this
 @EnableScheduling  // ⭐ ADD THIS ANNOTATION
+@EnableDiscoveryClient
 public class AuthServiceApplication {
 
 	public static void main(String[] args) {

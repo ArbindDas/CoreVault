@@ -1,30 +1,6 @@
 spring:
   application:
-    name: AUTH-SERVICE
-
-  datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      idle-timeout: 30000
-      max-lifetime: 1800000
-
-  jpa:
-    hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-      show_sql: ${SPRING_JPA_SHOW_SQL:true}
-      format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
-      use_sql_comments: ${SPRING_JPA_PROPERTIES_HIBERNATE_USE_SQL_COMMENTS:true}
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-    open-in-view: false
-
-
+    name: auth-service
 
   redis:
     host: ${REDIS_HOST:auth-redis}
@@ -40,50 +16,190 @@ spring:
     connect-timeout: 2000ms
 
 
-logging:
-  level:
-    root: ${SPRING_LOGGING_LEVEL_ROOT:INFO}
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    org.springframework.jdbc.core: DEBUG
-    org.springframework.data.redis: DEBUG  # Add this for Redis debugging
 
-management:
-  endpoints:
-    enabled-by-default: true
-    web:
-      exposure:
-        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:*}
 
+  # ✅ Mail configuration should be here, NOT under keycloak
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+# ✅ ADD proper Keycloak configuration (OUTSIDE spring:)
+keycloak:
+  auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL:http://keycloak:8080}
+  realm: ${KEYCLOAK_REALM:microservices-realm}
+  client-id: ${KEYCLOAK_CLIENT_ID:spring-cloud-client}  # ✅ Use env variable
+  resource: admin-cli
+#  credentials:
+#    secret: ${KEYCLOAK_CLIENT_SECRET}  # ✅ Remove default value to ensure it's set
+  admin:
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin123}
+
+
+
+
+
+# ✅ ADD Email templates (if sending custom emails)
+email:
+  templates:
+    verification:
+      subject: "Verify Your Email Address"
+      body: |
+        Hello {name},
+        
+        Please verify your email address by clicking the link below:
+        
+        {verificationLink}
+        
+        This link will expire in 24 hours.
+        
+        If you didn't create an account, please ignore this email.
+
+    password-reset:
+      subject: "Password Reset Request"
+      body: |
+        Hello {name},
+        
+        You requested to reset your password. Click the link below:
+        
+        {resetLink}
+        
+        This link will expire in 1 hour.
+        
+        If you didn't request a password reset, please ignore this email.
+
+# ✅ ADD Rate limiting for signup/login attempts
+auth:
+  rate-limiting:
+    signup:
+      max-attempts: 5
+      window-minutes: 60
+    login:
+      max-attempts: 10
+      window-minutes: 30
+    forgot-password:
+      max-attempts: 3
+      window-minutes: 60
+
+# ✅ ADD Validation constraints
+validation:
+  password:
+    min-length: 8
+    require-uppercase: true
+    require-lowercase: true
+    require-number: true
+    require-special-char: true
+  username:
+    min-length: 3
+    max-length: 50
+    pattern: "^[a-zA-Z0-9._-]+$"
+
+# Keep Eureka for service discovery
 eureka:
   client:
     service-url:
-      defaultZone: http://service-registry:8761/eureka/
+      defaultZone: ${EUREKA_SERVICE_URL:http://service-registry:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
 
 server:
   port: 8081
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
 
+# ✅ ADD Request/Response logging (optional)
+logging:
+  level:
+    root: ${SPRING_LOGGING_LEVEL_ROOT:INFO}
+    com.JSR.auth_service: DEBUG
+    org.keycloak: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/auth-service.log
+    max-size: 10MB
+    max-history: 30
 
+# ✅ ADD Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics,prometheus}
+      base-path: /manage
+    enabled-by-default: true
+  endpoint:
+    health:
+      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:always}
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+# ✅ ADD Resilience4j for Keycloak calls
 resilience4j:
   circuitbreaker:
     instances:
-      authService:
+      keycloak-admin:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 30s
         permittedNumberOfCallsInHalfOpenState: 3
-        minimumNumberOfCalls: 20
+        minimumNumberOfCalls: 5
         automaticTransitionFromOpenToHalfOpenEnabled: true
         recordExceptions:
-          - org.springframework.dao.DataAccessException
+          - jakarta.ws.rs.ProcessingException  # ✅ Changed from javax to jakarta
+          - jakarta.ws.rs.WebApplicationException  # ✅ Changed from javax to jakarta
           - java.net.ConnectException
-          - org.springframework.data.redis.RedisConnectionFailureException
-        ignoreExceptions:
-          - org.springframework.security.authentication.BadCredentialsException
-          - org.springframework.security.authentication.DisabledException
+          - java.net.SocketTimeoutException
 
+  retry:
+    instances:
+      keycloak-retry:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - jakarta.ws.rs.ProcessingException  # ✅ Changed from javax to jakarta
+          - java.net.ConnectException
   timelimiter:
     instances:
-      authTimeout:
-        timeoutDuration: 5s
+      keycloak-timeout:
+        timeoutDuration: 10s
         cancelRunningFuture: true
+# ✅ ADD Swagger/OpenAPI documentation
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  packages-to-scan: com.JSR.auth_service.controller
+  paths-to-match: /api/v1/**
+
+

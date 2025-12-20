@@ -1,76 +1,44 @@
 package com.JSR.auth_service.dto;
 
-
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Schema(description = "Standard API response wrapper")
 public class ApiResponseWrapper<T> {
-
-    @Schema(description = "Response data")
-    private T data;
-
-
-//    📦 Shipping Box (ApiResponseWrapper<T>)
-//├── 📋 Label (metadata: message, status, timestamp)
-//└── 🎁 Contents (T data)
-//    ├── If T=LoginResponse → Contains JWT token
-//    ├── If T=SignupResponse → Contains user ID
-//    ├── If T=UserDto → Contains user profile
-//    └── If T=List<Product> → Contains products
-
-    @Schema(description = "Response message", example = "Operation successful")
+    private boolean success;
     private String message;
+    private T data;
+    private Instant timestamp;
 
-    @Schema(description = "HTTP status code ", example =  "200")
-    private int status;
-
-    @Schema(description = "Timestamp of the Response")
-    private LocalDateTime timestamp;
-
-
-    @Schema(description = "API version", example = "v1")
-    private String version;
-
-    @Schema(description = "Request ID for tracing")
-    private String requestId;
-
-
-    public static <T> ApiResponseWrapper<T>success(T data  , String message , int status){
+    public static <T> ApiResponseWrapper<T> success(T data, String message) {
         return ApiResponseWrapper.<T>builder()
-                .data(data) // ← Your LoginResponse object goes here!
+                .success(true)
                 .message(message)
-                .status(status)
-                .timestamp(LocalDateTime.now())
-                .version("v1")
+                .data(data)
+                .timestamp(Instant.now())
                 .build();
     }
 
-
-    public static <T> ApiResponseWrapper<T>error(String message, int status ,String errorCode){
-
+    public static <T> ApiResponseWrapper<T> error(String message) {
         return ApiResponseWrapper.<T>builder()
-                .data(null)
+                .success(false)
                 .message(message)
-                .status(status)
-                .timestamp(LocalDateTime.now())
-                .version("v1")
+                .timestamp(Instant.now())
                 .build();
     }
 
-    // Add this overloaded version without errorCode if needed
-    public static <T> ApiResponseWrapper<T> error(String message, int status) {
-        return error(message, status, null);
+    public static <T> ApiResponseWrapper<T> error(T data, String message) {
+        return ApiResponseWrapper.<T>builder()
+                .success(false)
+                .message(message)
+                .data(data)
+                .timestamp(Instant.now())
+                .build();
     }
 }
