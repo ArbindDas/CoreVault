@@ -1,0 +1,97 @@
+spring:
+  application:
+    name: user-management-service
+
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 10000
+            loggerLevel: basic
+
+
+# Keycloak configuration
+keycloak:
+  auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL:http://keycloak:8080}
+  realm: ${KEYCLOAK_REALM:microservices-realm}
+  resource: ${KEYCLOAK_RESOURCE:spring-cloud-client}
+  credentials:
+    secret: ${KEYCLOAK_CLIENT_SECRET}
+
+  # Admin configuration
+  admin:
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:admin-cli}
+
+# Feign HTTP client
+feign:
+  httpclient:
+    enabled: true
+    max-connections: 200
+    max-connections-per-route: 50
+
+# Retry configuration for Feign
+feign.retry:
+  max-attempts: 3
+  backoff-delay: 1000
+  max-backoff-delay: 5000
+
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://service-registry:8761/eureka/
+
+server:
+  port: 8095
+
+# application.yml
+logging:
+  level:
+    # Spring Security logging
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.security.web: DEBUG
+    org.springframework.security.config: DEBUG
+
+    # Web logging
+    org.springframework.web: DEBUG
+    org.springframework.web.servlet: DEBUG
+
+    # Your application logging
+    com.JSR.user_service: DEBUG
+    com.JSR.user_service.utils.JwtUtil: DEBUG
+    com.JSR.user_service.service.UserProfileServiceImpl: DEBUG
+    com.JSR.user_service.controller.UserProfileController: DEBUG
+
+    # HTTP Client logging (if using RestTemplate/WebClient)
+    org.apache.http: DEBUG
+    org.springframework.web.client: DEBUG
+
+    # Database logging (optional)
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+
+# application.yml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      access: read_only  # ✅ More secure than permitAll
+    info:
+      enabled: true
+    metrics:
+      enabled: true
+  health:
+    defaults:
+      enabled: true

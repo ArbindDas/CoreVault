@@ -28,6 +28,11 @@ spring:
           uri: http://service-registry:8761
           predicates:
             - Path=/eureka/**
+        - id: user-management-service
+          uri: lb://user-management-service
+          predicates:
+            - Path=/api/admin/users/**
+
 
 server:
   port: 8765

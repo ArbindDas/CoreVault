@@ -222,7 +222,50 @@ services :
       start_period: 60s
 
 
+  user-management-service:
+    container_name: user-management-service
+    build:
+      context: ./user-management-service
+      dockerfile: Dockerfile
+    image: user-management-service:latest
+    restart: always
+    env_file:
+      - ./user-management-service/.env
+    ports:
+      - "8095:8095"  # Different port than user-service
+    depends_on:
+      service-registry:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    networks:
+      - backend-network
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SERVER_PORT=8095
 
+      # Keycloak Configuration
+      - KEYCLOAK_ISSUER_URI=http://keycloak:8080/realms/microservices-realm
+      - KEYCLOAK_AUTH_SERVER_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=microservices-realm
+      - KEYCLOAK_RESOURCE=spring-cloud-client
+      - KEYCLOAK_CREDENTIALS_SECRET=${KEYCLOAK_CLIENT_SECRET}  # From .env
+
+      # Admin Configuration
+      - KEYCLOAK_ADMIN_CLIENT_ID=admin-cli
+      - KEYCLOAK_ADMIN_USERNAME=admin
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}  # From .env
+
+      # Service Configuration
+      - SERVICE_NAME=user-management-service
+      - LOGGING_LEVEL_COM_JSR=DEBUG
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8095/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s  # Shorter than user-service (no DB to wait for)
 
 volumes :
   mysql-data :

@@ -132,7 +132,7 @@
                 @Valid @RequestBody LoginRequest loginRequest,
                 HttpServletRequest request) {
 
-            log.info("Login request for username: {}", loginRequest.getUsername());
+            log.info("Login request for username: {}", loginRequest.getEmail());
 
             // Check rate limiting
             String clientIp = getClientIp(request);
@@ -151,7 +151,7 @@
                 // Track metrics
                 meterRegistry.counter("auth.login.success").increment();
 
-                log.info("Login successful for: {}", loginRequest.getUsername());
+                log.info("Login successful for: {}", loginRequest.getEmail());
 
                 return ResponseEntity.ok(ApiResponseWrapper.success(response, "Login successful"));
 

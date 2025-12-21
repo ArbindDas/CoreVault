@@ -10,6 +10,8 @@
         <option value="$USER_HOME$/Downloads/Apigateway/pom.xml" />
         <option value="$USER_HOME$/Downloads/api-gateway/pom.xml" />
         <option value="$PROJECT_DIR$/api-gateway/pom.xml" />
+        <option value="$PROJECT_DIR$/../user-management-service/pom.xml" />
+        <option value="$PROJECT_DIR$/user-management-service/pom.xml" />
       </list>
     </option>
   </component>

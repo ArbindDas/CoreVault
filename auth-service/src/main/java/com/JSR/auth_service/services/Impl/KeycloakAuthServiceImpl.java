@@ -2,6 +2,8 @@ package com.JSR.auth_service.services.Impl;
 
 import com.JSR.auth_service.dto.*;
 import com.JSR.auth_service.services.KeycloakAuthService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.OAuth2Constants;
@@ -18,7 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
+
 
 import jakarta.ws.rs.core.Response;
 import java.time.Instant;
@@ -41,8 +43,6 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
     @Value("${keycloak.admin.password}")
     private String adminPassword;
 
-//    @Value("${keycloak.credentials.secret:}")  // ✅ ADD THIS
-//    private String clientSecret;
 
     @Value("${keycloak.client-id:spring-cloud-client}")
     private String clientId;
@@ -99,7 +99,6 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
             user.setLastName(lastName);
             user.setEnabled(true);
             user.setEmailVerified(true);  // ✅ Set to true for development
-            // user.setRequiredActions(List.of("VERIFY_EMAIL"));  // ✅ Comment this out
 
             // Set credentials
             CredentialRepresentation credential = new CredentialRepresentation();
@@ -118,9 +117,6 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
 
                 log.info("User created successfully with ID: {}", userId);
 
-                // ✅ Skip sending verification email in development
-                // UserResource userResource = usersResource.get(userId);
-                // userResource.sendVerifyEmail();
 
                 return SignupResponse.builder()
                         .userId(userId)
@@ -148,7 +144,7 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        log.info("Logging in user: {}", request.getUsername());
+        log.info("Logging in user: {}", request.getEmail());
 
         try {
             String tokenUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/token";
@@ -158,16 +154,14 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
 
             MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
             body.add("client_id", clientId);
-            // ❌ REMOVE THIS LINE - Not needed for public client
-            // body.add("client_secret", clientSecret);
             body.add("grant_type", "password");
-            body.add("username", request.getUsername());
+            body.add("username", request.getEmail());
             body.add("password", request.getPassword());
             body.add("scope", "openid email profile");
 
             HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
 
-            log.debug("Attempting login for user: {}", request.getUsername());
+            log.debug("Attempting login for user: {}", request.getEmail());
 
             ResponseEntity<Map> response = restTemplate.exchange(
                     tokenUrl, HttpMethod.POST, entity, Map.class);
@@ -351,12 +345,12 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         }
     }
 
+
 //    @Override
 //    public UserInfoResponse getUserInfo(String token) {
 //        log.debug("Getting user info");
 //
 //        try {
-//            // Call Keycloak userinfo endpoint
 //            String userInfoUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/userinfo";
 //
 //            HttpHeaders headers = new HttpHeaders();
@@ -370,15 +364,17 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
 //            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
 //                Map<String, Object> userInfoData = response.getBody();
 //
+//                log.debug("User info response: {}", userInfoData);
+//
 //                return UserInfoResponse.builder()
-//                        .userId((String) userInfoData.get("sub"))
-//                        .email((String) userInfoData.get("email"))
-//                        .username((String) userInfoData.get("preferred_username"))
-//                        .fullName((String) userInfoData.get("name"))
-//                        .firstName((String) userInfoData.get("given_name"))
-//                        .lastName((String) userInfoData.get("family_name"))
-//                        .emailVerified(Boolean.TRUE.equals(userInfoData.get("email_verified")))
-//                        .roles((List<String>) ((Map<String, Object>) userInfoData.get("realm_access")).get("roles"))
+//                        .userId(getStringValue(userInfoData, "sub"))
+//                        .email(getStringValue(userInfoData, "email"))
+//                        .username(getStringValue(userInfoData, "preferred_username"))
+//                        .fullName(getStringValue(userInfoData, "name"))
+//                        .firstName(getStringValue(userInfoData, "given_name"))
+//                        .lastName(getStringValue(userInfoData, "family_name"))
+//                        .emailVerified(getBooleanValue(userInfoData, "email_verified"))
+//                        .roles(extractRoles(userInfoData))
 //                        .attributes(userInfoData)
 //                        .build();
 //            }
@@ -386,10 +382,12 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
 //            throw new RuntimeException("Failed to get user info");
 //
 //        } catch (Exception e) {
-//            log.error("Failed to get user info: {}", e.getMessage());
+//            log.error("Failed to get user info: {}", e.getMessage(), e);
 //            throw new RuntimeException("Failed to get user info: " + e.getMessage());
 //        }
 //    }
+
+
 
     @Override
     public UserInfoResponse getUserInfo(String token) {
@@ -411,6 +409,9 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
 
                 log.debug("User info response: {}", userInfoData);
 
+                // ✅ Get roles from the token, not from userinfo
+                List<String> roles = extractRoles(token);
+
                 return UserInfoResponse.builder()
                         .userId(getStringValue(userInfoData, "sub"))
                         .email(getStringValue(userInfoData, "email"))
@@ -419,7 +420,7 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
                         .firstName(getStringValue(userInfoData, "given_name"))
                         .lastName(getStringValue(userInfoData, "family_name"))
                         .emailVerified(getBooleanValue(userInfoData, "email_verified"))
-                        .roles(extractRoles(userInfoData))
+                        .roles(roles) // ✅ Now contains ["ADMIN", ...]
                         .attributes(userInfoData)
                         .build();
             }
@@ -443,18 +444,49 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         return Boolean.TRUE.equals(value);
     }
 
-    private List<String> extractRoles(Map<String, Object> userInfoData) {
+//    private List<String> extractRoles(Map<String, Object> userInfoData) {
+//        try {
+//            Object realmAccessObj = userInfoData.get("realm_access");
+//            if (realmAccessObj instanceof Map) {
+//                Map<String, Object> realmAccess = (Map<String, Object>) realmAccessObj;
+//                Object rolesObj = realmAccess.get("roles");
+//                if (rolesObj instanceof List) {
+//                    return (List<String>) rolesObj;
+//                }
+//            }
+//        } catch (Exception e) {
+//            log.warn("Failed to extract roles: {}", e.getMessage());
+//        }
+//        return Collections.emptyList();
+//    }
+
+
+    private List<String> extractRoles(String token) {
         try {
-            Object realmAccessObj = userInfoData.get("realm_access");
-            if (realmAccessObj instanceof Map) {
-                Map<String, Object> realmAccess = (Map<String, Object>) realmAccessObj;
-                Object rolesObj = realmAccess.get("roles");
-                if (rolesObj instanceof List) {
-                    return (List<String>) rolesObj;
+            // Decode the JWT token to get roles
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return Collections.emptyList();
+
+            // Decode the payload (middle part)
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode jsonNode = mapper.readTree(payload);
+
+            // Extract roles from realm_access.roles
+            JsonNode realmAccess = jsonNode.path("realm_access");
+            if (!realmAccess.isMissingNode()) {
+                JsonNode rolesNode = realmAccess.path("roles");
+                if (rolesNode.isArray()) {
+                    List<String> roles = new ArrayList<>();
+                    for (JsonNode role : rolesNode) {
+                        roles.add(role.asText());
+                    }
+                    log.debug("Extracted roles from token: {}", roles);
+                    return roles;
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to extract roles: {}", e.getMessage());
+            log.warn("Failed to extract roles from token: {}", e.getMessage());
         }
         return Collections.emptyList();
     }
