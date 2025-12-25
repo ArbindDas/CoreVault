@@ -15,6 +15,16 @@ spring:
       shutdown-timeout: 100ms
     connect-timeout: 2000ms
 
+  cloud:
+    openfeign:
+      enabled: true
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 5000
+            loggerLevel: basic
+
 
 
 

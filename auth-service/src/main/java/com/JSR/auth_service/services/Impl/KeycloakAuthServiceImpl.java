@@ -1,5 +1,7 @@
+
 package com.JSR.auth_service.services.Impl;
 
+import com.JSR.auth_service.clients.*;
 import com.JSR.auth_service.dto.*;
 import com.JSR.auth_service.services.KeycloakAuthService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,12 +17,10 @@ import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
-
 
 import jakarta.ws.rs.core.Response;
 import java.time.Instant;
@@ -43,13 +43,13 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
     @Value("${keycloak.admin.password}")
     private String adminPassword;
 
-
     @Value("${keycloak.client-id:spring-cloud-client}")
     private String clientId;
 
-    private final RestTemplate restTemplate;
-
-
+    // Feign Clients
+    private final KeycloakTokenClient keycloakTokenClient;
+    private final KeycloakUserInfoClient keycloakUserInfoClient;
+    private final KeycloakDiscoveryClient keycloakDiscoveryClient;
 
     private Keycloak getKeycloakAdminClient() {
         return KeycloakBuilder.builder()
@@ -61,7 +61,6 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
                 .password(adminPassword)
                 .build();
     }
-
 
     @Override
     public SignupResponse createUser(SignupRequest request) {
@@ -98,7 +97,7 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
             user.setFirstName(firstName);
             user.setLastName(lastName);
             user.setEnabled(true);
-            user.setEmailVerified(true);  // ✅ Set to true for development
+            user.setEmailVerified(true);
 
             // Set credentials
             CredentialRepresentation credential = new CredentialRepresentation();
@@ -117,12 +116,11 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
 
                 log.info("User created successfully with ID: {}", userId);
 
-
                 return SignupResponse.builder()
                         .userId(userId)
                         .email(request.getEmail())
                         .fullName(request.getFullName())
-                        .requiresEmailVerification(false)  // ✅ Set to false
+                        .requiresEmailVerification(false)
                         .build();
             } else {
                 String errorMessage = response.readEntity(String.class);
@@ -140,61 +138,47 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         }
     }
 
-
-
     @Override
     public LoginResponse login(LoginRequest request) {
         log.info("Logging in user: {}", request.getEmail());
 
         try {
-            String tokenUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/token";
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("client_id", clientId);
-            body.add("grant_type", "password");
-            body.add("username", request.getEmail());
-            body.add("password", request.getPassword());
-            body.add("scope", "openid email profile");
-
-            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
+            // Prepare form data
+            Map<String, String> formData = new LinkedHashMap<>();
+            formData.put("client_id", clientId);
+            formData.put("grant_type", "password");
+            formData.put("username", request.getEmail());
+            formData.put("password", request.getPassword());
+            formData.put("scope", "openid email profile");
 
             log.debug("Attempting login for user: {}", request.getEmail());
 
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    tokenUrl, HttpMethod.POST, entity, Map.class);
+            // Use Feign client
+            Map<String, Object> tokenData = keycloakTokenClient.getToken(formData);
 
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> tokenData = response.getBody();
+            // Get user info
+            String accessToken = (String) tokenData.get("access_token");
+            UserInfoResponse userInfo = getUserInfo(accessToken);
 
-                // Get user info
-                String accessToken = (String) tokenData.get("access_token");
-                UserInfoResponse userInfo = getUserInfo(accessToken);
-
-                return LoginResponse.builder()
-                        .accessToken(accessToken)
-                        .refreshToken((String) tokenData.get("refresh_token"))
-                        .tokenType((String) tokenData.get("token_type"))
-                        .expiresIn(((Number) tokenData.get("expires_in")).longValue())
-                        .refreshExpiresIn(((Number) tokenData.get("refresh_expires_in")).longValue())
-                        .scope((String) tokenData.get("scope"))
-                        .user(LoginResponse.UserInfo.builder()
-                                .userId(userInfo.getUserId())
-                                .email(userInfo.getEmail())
-                                .username(userInfo.getUsername())
-                                .fullName(userInfo.getFullName())
-                                .roles(userInfo.getRoles())
-                                .emailVerified(userInfo.isEmailVerified())
-                                .build())
-                        .build();
-            } else {
-                throw new RuntimeException("Invalid credentials");
-            }
+            return LoginResponse.builder()
+                    .accessToken(accessToken)
+                    .refreshToken((String) tokenData.get("refresh_token"))
+                    .tokenType((String) tokenData.get("token_type"))
+                    .expiresIn(((Number) tokenData.get("expires_in")).longValue())
+                    .refreshExpiresIn(((Number) tokenData.get("refresh_expires_in")).longValue())
+                    .scope((String) tokenData.get("scope"))
+                    .user(LoginResponse.UserInfo.builder()
+                            .userId(userInfo.getUserId())
+                            .email(userInfo.getEmail())
+                            .username(userInfo.getUsername())
+                            .fullName(userInfo.getFullName())
+                            .roles(userInfo.getRoles())
+                            .emailVerified(userInfo.isEmailVerified())
+                            .build())
+                    .build();
 
         } catch (Exception e) {
-            log.error("Login failed: {}", e.getMessage());
+            log.error("Login failed: {}", e.getMessage(), e);
             throw new RuntimeException("Invalid username or password");
         }
     }
@@ -204,37 +188,29 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         log.debug("Validating token");
 
         try {
-            // Call Keycloak introspection endpoint
-            String introspectionUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/token/introspect";
+            // Prepare auth header for client credentials
+            String authHeader = "Basic " + Base64.getEncoder()
+                    .encodeToString((clientId + ":" + getClientSecret()).getBytes());
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            headers.setBasicAuth(clientId, getClientSecret());
+            // Prepare form data
+            Map<String, String> formData = new LinkedHashMap<>();
+            formData.put("token", token);
+            formData.put("token_type_hint", "access_token");
 
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("token", token);
-            body.add("token_type_hint", "access_token");
+            // Use Feign client
+            Map<String, Object> introspectData = keycloakTokenClient.introspectToken(authHeader, formData);
+            boolean active = Boolean.TRUE.equals(introspectData.get("active"));
 
-            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
-
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    introspectionUrl, HttpMethod.POST, entity, Map.class);
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> introspectData = response.getBody();
-                boolean active = Boolean.TRUE.equals(introspectData.get("active"));
-
-                if (active) {
-                    return TokenValidationResponse.builder()
-                            .valid(true)
-                            .userId((String) introspectData.get("sub"))
-                            .email((String) introspectData.get("email"))
-                            .username((String) introspectData.get("preferred_username"))
-                            .roles((List<String>) ((Map<String, Object>) introspectData.get("realm_access")).get("roles"))
-                            .expiresAt(Instant.ofEpochSecond(((Number) introspectData.get("exp")).longValue()))
-                            .issuedAt(Instant.ofEpochSecond(((Number) introspectData.get("iat")).longValue()))
-                            .build();
-                }
+            if (active) {
+                return TokenValidationResponse.builder()
+                        .valid(true)
+                        .userId((String) introspectData.get("sub"))
+                        .email((String) introspectData.get("email"))
+                        .username((String) introspectData.get("preferred_username"))
+                        .roles((List<String>) ((Map<String, Object>) introspectData.get("realm_access")).get("roles"))
+                        .expiresAt(Instant.ofEpochSecond(((Number) introspectData.get("exp")).longValue()))
+                        .issuedAt(Instant.ofEpochSecond(((Number) introspectData.get("iat")).longValue()))
+                        .build();
             }
 
             return TokenValidationResponse.builder()
@@ -243,7 +219,7 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Token validation error: {}", e.getMessage());
+            log.error("Token validation error: {}", e.getMessage(), e);
             return TokenValidationResponse.builder()
                     .valid(false)
                     .errorMessage("Token validation failed: " + e.getMessage())
@@ -256,21 +232,19 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         log.info("Logging out user");
 
         try {
-            String logoutUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/logout";
+            // Extract refresh token from the current session (simplified)
+            String refreshToken = extractRefreshToken(token);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            // Prepare form data
+            Map<String, String> formData = new LinkedHashMap<>();
+            formData.put("client_id", clientId);
+            formData.put("refresh_token", refreshToken);
 
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("client_id", clientId);
-            body.add("refresh_token", extractRefreshToken(token));
-
-            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
-
-            restTemplate.exchange(logoutUrl, HttpMethod.POST, entity, Void.class);
+            // Use Feign client
+            keycloakTokenClient.logout(formData);
 
         } catch (Exception e) {
-            log.warn("Logout failed: {}", e.getMessage());
+            log.warn("Logout failed: {}", e.getMessage(), e);
             throw new RuntimeException("Logout failed: " + e.getMessage());
         }
     }
@@ -345,87 +319,30 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         }
     }
 
-
-//    @Override
-//    public UserInfoResponse getUserInfo(String token) {
-//        log.debug("Getting user info");
-//
-//        try {
-//            String userInfoUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/userinfo";
-//
-//            HttpHeaders headers = new HttpHeaders();
-//            headers.setBearerAuth(token);
-//
-//            HttpEntity<Void> entity = new HttpEntity<>(headers);
-//
-//            ResponseEntity<Map> response = restTemplate.exchange(
-//                    userInfoUrl, HttpMethod.GET, entity, Map.class);
-//
-//            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-//                Map<String, Object> userInfoData = response.getBody();
-//
-//                log.debug("User info response: {}", userInfoData);
-//
-//                return UserInfoResponse.builder()
-//                        .userId(getStringValue(userInfoData, "sub"))
-//                        .email(getStringValue(userInfoData, "email"))
-//                        .username(getStringValue(userInfoData, "preferred_username"))
-//                        .fullName(getStringValue(userInfoData, "name"))
-//                        .firstName(getStringValue(userInfoData, "given_name"))
-//                        .lastName(getStringValue(userInfoData, "family_name"))
-//                        .emailVerified(getBooleanValue(userInfoData, "email_verified"))
-//                        .roles(extractRoles(userInfoData))
-//                        .attributes(userInfoData)
-//                        .build();
-//            }
-//
-//            throw new RuntimeException("Failed to get user info");
-//
-//        } catch (Exception e) {
-//            log.error("Failed to get user info: {}", e.getMessage(), e);
-//            throw new RuntimeException("Failed to get user info: " + e.getMessage());
-//        }
-//    }
-
-
-
     @Override
     public UserInfoResponse getUserInfo(String token) {
         log.debug("Getting user info");
 
         try {
-            String userInfoUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/userinfo";
+            // Use Feign client
+            Map<String, Object> userInfoData = keycloakUserInfoClient.getUserInfo("Bearer " + token);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(token);
+            log.debug("User info response: {}", userInfoData);
 
-            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            // Extract roles from the token
+            List<String> roles = extractRoles(token);
 
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    userInfoUrl, HttpMethod.GET, entity, Map.class);
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> userInfoData = response.getBody();
-
-                log.debug("User info response: {}", userInfoData);
-
-                // ✅ Get roles from the token, not from userinfo
-                List<String> roles = extractRoles(token);
-
-                return UserInfoResponse.builder()
-                        .userId(getStringValue(userInfoData, "sub"))
-                        .email(getStringValue(userInfoData, "email"))
-                        .username(getStringValue(userInfoData, "preferred_username"))
-                        .fullName(getStringValue(userInfoData, "name"))
-                        .firstName(getStringValue(userInfoData, "given_name"))
-                        .lastName(getStringValue(userInfoData, "family_name"))
-                        .emailVerified(getBooleanValue(userInfoData, "email_verified"))
-                        .roles(roles) // ✅ Now contains ["ADMIN", ...]
-                        .attributes(userInfoData)
-                        .build();
-            }
-
-            throw new RuntimeException("Failed to get user info");
+            return UserInfoResponse.builder()
+                    .userId(getStringValue(userInfoData, "sub"))
+                    .email(getStringValue(userInfoData, "email"))
+                    .username(getStringValue(userInfoData, "preferred_username"))
+                    .fullName(getStringValue(userInfoData, "name"))
+                    .firstName(getStringValue(userInfoData, "given_name"))
+                    .lastName(getStringValue(userInfoData, "family_name"))
+                    .emailVerified(getBooleanValue(userInfoData, "email_verified"))
+                    .roles(roles)
+                    .attributes(userInfoData)
+                    .build();
 
         } catch (Exception e) {
             log.error("Failed to get user info: {}", e.getMessage(), e);
@@ -433,102 +350,31 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         }
     }
 
-    // ✅ Helper methods for safe extraction
-    private String getStringValue(Map<String, Object> map, String key) {
-        Object value = map.get(key);
-        return value != null ? value.toString() : null;
-    }
-
-    private boolean getBooleanValue(Map<String, Object> map, String key) {
-        Object value = map.get(key);
-        return Boolean.TRUE.equals(value);
-    }
-
-//    private List<String> extractRoles(Map<String, Object> userInfoData) {
-//        try {
-//            Object realmAccessObj = userInfoData.get("realm_access");
-//            if (realmAccessObj instanceof Map) {
-//                Map<String, Object> realmAccess = (Map<String, Object>) realmAccessObj;
-//                Object rolesObj = realmAccess.get("roles");
-//                if (rolesObj instanceof List) {
-//                    return (List<String>) rolesObj;
-//                }
-//            }
-//        } catch (Exception e) {
-//            log.warn("Failed to extract roles: {}", e.getMessage());
-//        }
-//        return Collections.emptyList();
-//    }
-
-
-    private List<String> extractRoles(String token) {
-        try {
-            // Decode the JWT token to get roles
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) return Collections.emptyList();
-
-            // Decode the payload (middle part)
-            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode jsonNode = mapper.readTree(payload);
-
-            // Extract roles from realm_access.roles
-            JsonNode realmAccess = jsonNode.path("realm_access");
-            if (!realmAccess.isMissingNode()) {
-                JsonNode rolesNode = realmAccess.path("roles");
-                if (rolesNode.isArray()) {
-                    List<String> roles = new ArrayList<>();
-                    for (JsonNode role : rolesNode) {
-                        roles.add(role.asText());
-                    }
-                    log.debug("Extracted roles from token: {}", roles);
-                    return roles;
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to extract roles from token: {}", e.getMessage());
-        }
-        return Collections.emptyList();
-    }
-
-
     @Override
     public TokenResponse refreshToken(String refreshToken) {
         log.debug("Refreshing token");
 
         try {
-            String tokenUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+            // Prepare form data
+            Map<String, String> formData = new LinkedHashMap<>();
+            formData.put("client_id", clientId);
+            formData.put("grant_type", "refresh_token");
+            formData.put("refresh_token", refreshToken);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            // Use Feign client
+            Map<String, Object> tokenData = keycloakTokenClient.refreshToken(formData);
 
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("client_id", clientId);
-            body.add("grant_type", "refresh_token");
-            body.add("refresh_token", refreshToken);
-
-            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
-
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    tokenUrl, HttpMethod.POST, entity, Map.class);
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> tokenData = response.getBody();
-
-                return TokenResponse.builder()
-                        .accessToken((String) tokenData.get("access_token"))
-                        .refreshToken((String) tokenData.get("refresh_token"))
-                        .tokenType((String) tokenData.get("token_type"))
-                        .expiresIn(((Number) tokenData.get("expires_in")).longValue())
-                        .refreshExpiresIn(((Number) tokenData.get("refresh_expires_in")).longValue())
-                        .scope((String) tokenData.get("scope"))
-                        .build();
-            }
-
-            throw new RuntimeException("Failed to refresh token");
+            return TokenResponse.builder()
+                    .accessToken((String) tokenData.get("access_token"))
+                    .refreshToken((String) tokenData.get("refresh_token"))
+                    .tokenType((String) tokenData.get("token_type"))
+                    .expiresIn(((Number) tokenData.get("expires_in")).longValue())
+                    .refreshExpiresIn(((Number) tokenData.get("refresh_expires_in")).longValue())
+                    .scope((String) tokenData.get("scope"))
+                    .build();
 
         } catch (Exception e) {
-            log.error("Token refresh failed: {}", e.getMessage());
+            log.error("Token refresh failed: {}", e.getMessage(), e);
             throw new RuntimeException("Invalid refresh token");
         }
     }
@@ -561,13 +407,10 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         log.debug("Performing health check");
 
         try {
-            // Check Keycloak health
-            String healthUrl = keycloakServerUrl + "/realms/" + realm + "/.well-known/openid-configuration";
+            // Use Feign client
+            Map<String, Object> config = keycloakDiscoveryClient.getConfiguration();
 
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    healthUrl, HttpMethod.GET, null, Map.class);
-
-            boolean keycloakHealthy = response.getStatusCode() == HttpStatus.OK;
+            boolean keycloakHealthy = config != null && !config.isEmpty();
 
             return HealthCheckResponse.builder()
                     .serviceHealthy(true)
@@ -578,7 +421,7 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Health check failed: {}", e.getMessage());
+            log.error("Health check failed: {}", e.getMessage(), e);
             return HealthCheckResponse.builder()
                     .serviceHealthy(false)
                     .keycloakHealthy(false)
@@ -588,14 +431,50 @@ public class KeycloakAuthServiceImpl implements KeycloakAuthService {
         }
     }
 
+    // Helper methods
+    private String getStringValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value != null ? value.toString() : null;
+    }
+
+    private boolean getBooleanValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return Boolean.TRUE.equals(value);
+    }
+
+    private List<String> extractRoles(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return Collections.emptyList();
+
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode jsonNode = mapper.readTree(payload);
+
+            JsonNode realmAccess = jsonNode.path("realm_access");
+            if (!realmAccess.isMissingNode()) {
+                JsonNode rolesNode = realmAccess.path("roles");
+                if (rolesNode.isArray()) {
+                    List<String> roles = new ArrayList<>();
+                    for (JsonNode role : rolesNode) {
+                        roles.add(role.asText());
+                    }
+                    log.debug("Extracted roles from token: {}", roles);
+                    return roles;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract roles from token: {}", e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
     private String getClientSecret() {
-        // Get client secret from configuration or environment
-        // This should be configured in application.yml
         return System.getenv("KEYCLOAK_CLIENT_SECRET");
     }
 
     private String extractRefreshToken(String accessToken) {
-        // In a real implementation, you'd need to store refresh tokens
+        // In a real implementation, you'd store refresh tokens securely
         // This is a simplified version
         return "refresh_token_placeholder";
     }

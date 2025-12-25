@@ -11,11 +11,6 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 public class AppConfig {
 
-    // RestTemplate bean
-    @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
-    }
 
     // Redis Connection Factory
     @Bean

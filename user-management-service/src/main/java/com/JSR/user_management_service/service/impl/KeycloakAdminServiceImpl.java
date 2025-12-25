@@ -63,36 +63,6 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
         }
     }
 
-//    private synchronized void refreshAdminToken() {
-//        log.info("Refreshing admin token for realm: {} with username: {}", realm, adminUsername);
-//
-//        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-//        formData.add("client_id", ADMIN_CLI);
-//        formData.add("username", adminUsername);
-//        formData.add("password", adminPassword);
-//        formData.add("grant_type", GRANT_TYPE);
-//
-//        try {
-//            // ✅ FIXED: Pass the realm parameter
-//            Map<String, Object> tokenResponse = tokenClient.getAdminToken("master", formData);
-//
-//            if (tokenResponse != null && tokenResponse.containsKey("access_token")) {
-//                this.adminToken = (String) tokenResponse.get("access_token");
-//                long expiresIn = ((Number) tokenResponse.get("expires_in")).longValue() * 1000;
-//                this.tokenExpiryTime = System.currentTimeMillis() + expiresIn - 60000; // Refresh 1 min before expiry
-//
-//                log.info("Admin token refreshed successfully, expires in {} seconds", expiresIn / 1000);
-//            } else {
-//                log.error("Failed to obtain admin token: Invalid response from Keycloak");
-//                throw new KeycloakException("Invalid token response from Keycloak");
-//            }
-//        } catch (Exception e) {
-//            log.error("Failed to refresh admin token. Realm: {}, Username: {}, Error: {}",
-//                    realm, adminUsername, e.getMessage(), e);
-//            throw new KeycloakException("Failed to obtain admin token from Keycloak", e);
-//        }
-//    }
-
 
     private synchronized void refreshAdminToken() {
         log.info("Refreshing admin token for username: {}", adminUsername);
