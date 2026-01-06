@@ -147,20 +147,27 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
         }
     }
 
+
+
     @Override
     public String createUser(CreateUserRequest request) {
         try {
             String token = getAdminToken();
             Map<String, Object> userData = buildUserData(request);
 
+            // ADD THIS LOG
+            log.info("Creating user - Email: {}, Username: {}",
+                    request.getEmail(),
+                    userData.get("username"));
+
             ResponseEntity<Void> response = keycloakAdminClient.createUser(realm, token, userData);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                // Extract user ID from location header
                 String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
                 if (location != null) {
                     String userId = location.substring(location.lastIndexOf('/') + 1);
-                    log.info("User created successfully with ID: {}", userId);
+                    log.info("✅ User created successfully - ID: {}, Username: {}",
+                            userId, userData.get("username"));
                     return userId;
                 }
             }
@@ -180,7 +187,7 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
             String token = getAdminToken();
 
             Map<String, Object> userData = new HashMap<>();
-            if (request.getUsername() != null) userData.put("username", request.getUsername());
+//            if (request.getUsername() != null) userData.put("username", request.getUsername());
             if (request.getEmail() != null) userData.put("email", request.getEmail());
             if (request.getFirstName() != null) userData.put("firstName", request.getFirstName());
             if (request.getLastName() != null) userData.put("lastName", request.getLastName());
@@ -281,39 +288,6 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
         }
     }
 
-//    private Map<String, Object> buildUserData(CreateUserRequest request) {
-//        Map<String, Object> userData = new HashMap<>();
-//        userData.put("username", request.getUsername());
-//        userData.put("email", request.getEmail());
-//        userData.put("firstName", request.getFirstName());
-//        userData.put("lastName", request.getLastName());
-//        userData.put("enabled", request.isEnabled());
-//        userData.put("emailVerified", request.isEmailVerified());
-//
-//        // Credentials
-//        Map<String, Object> credentials = new HashMap<>();
-//        credentials.put("type", "password");
-//        credentials.put("value", request.getPassword());
-//        credentials.put("temporary", request.isTemporaryPassword());
-//        userData.put("credentials", List.of(credentials));
-//
-//        // Required actions
-//        List<String> requiredActions = new ArrayList<>();
-//        if (!request.isEmailVerified()) {
-//            requiredActions.add("VERIFY_EMAIL");
-//        }
-//        if (request.isTemporaryPassword()) {
-//            requiredActions.add("UPDATE_PASSWORD");
-//        }
-//
-//        if (!requiredActions.isEmpty()) {
-//            userData.put("requiredActions", requiredActions);
-//        }
-//
-//        return userData;
-//    }
-
-
 
     private Map<String, Object> buildUserData(CreateUserRequest request) {
         Map<String, Object> userData = new HashMap<>();
@@ -329,29 +303,27 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
             lastName = nameParts.length > 1 ? nameParts[1] : "";
         }
 
-        // Use email as username (common practice)
-        userData.put("username", request.getEmail());
-        userData.put("email", request.getEmail());
+        // ✅ FIXED: Extract username from email (before @)
+        String email = request.getEmail();
+        String username = email.split("@")[0]; // Extract part before @
+
+        userData.put("username", username); // Use extracted username
+        userData.put("email", email);
         userData.put("firstName", firstName);
         userData.put("lastName", lastName);
-        userData.put("enabled", true); // Default to enabled
-        userData.put("emailVerified", true); // Default to not verified
+        userData.put("enabled", true);
+        userData.put("emailVerified", false); // Should be false initially
 
         // Credentials - password from request
         Map<String, Object> credentials = new HashMap<>();
         credentials.put("type", "password");
         credentials.put("value", request.getPassword());
-        credentials.put("temporary", false); // Assuming password is not temporary
+        credentials.put("temporary", false);
         userData.put("credentials", List.of(credentials));
 
         // Required actions
         List<String> requiredActions = new ArrayList<>();
-
-        // Always require email verification for new users
         requiredActions.add("VERIFY_EMAIL");
-
-        // If you want to force password change on first login
-        // requiredActions.add("UPDATE_PASSWORD");
 
         if (!requiredActions.isEmpty()) {
             userData.put("requiredActions", requiredActions);
