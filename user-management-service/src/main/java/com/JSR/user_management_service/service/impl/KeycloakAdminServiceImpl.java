@@ -281,30 +281,77 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
         }
     }
 
+//    private Map<String, Object> buildUserData(CreateUserRequest request) {
+//        Map<String, Object> userData = new HashMap<>();
+//        userData.put("username", request.getUsername());
+//        userData.put("email", request.getEmail());
+//        userData.put("firstName", request.getFirstName());
+//        userData.put("lastName", request.getLastName());
+//        userData.put("enabled", request.isEnabled());
+//        userData.put("emailVerified", request.isEmailVerified());
+//
+//        // Credentials
+//        Map<String, Object> credentials = new HashMap<>();
+//        credentials.put("type", "password");
+//        credentials.put("value", request.getPassword());
+//        credentials.put("temporary", request.isTemporaryPassword());
+//        userData.put("credentials", List.of(credentials));
+//
+//        // Required actions
+//        List<String> requiredActions = new ArrayList<>();
+//        if (!request.isEmailVerified()) {
+//            requiredActions.add("VERIFY_EMAIL");
+//        }
+//        if (request.isTemporaryPassword()) {
+//            requiredActions.add("UPDATE_PASSWORD");
+//        }
+//
+//        if (!requiredActions.isEmpty()) {
+//            userData.put("requiredActions", requiredActions);
+//        }
+//
+//        return userData;
+//    }
+
+
+
     private Map<String, Object> buildUserData(CreateUserRequest request) {
         Map<String, Object> userData = new HashMap<>();
-        userData.put("username", request.getUsername());
-        userData.put("email", request.getEmail());
-        userData.put("firstName", request.getFirstName());
-        userData.put("lastName", request.getLastName());
-        userData.put("enabled", request.isEnabled());
-        userData.put("emailVerified", request.isEmailVerified());
 
-        // Credentials
+        // Split fullName into firstName and lastName
+        String fullName = request.getFullName();
+        String firstName = "";
+        String lastName = "";
+
+        if (fullName != null && !fullName.trim().isEmpty()) {
+            String[] nameParts = fullName.trim().split("\\s+", 2);
+            firstName = nameParts[0];
+            lastName = nameParts.length > 1 ? nameParts[1] : "";
+        }
+
+        // Use email as username (common practice)
+        userData.put("username", request.getEmail());
+        userData.put("email", request.getEmail());
+        userData.put("firstName", firstName);
+        userData.put("lastName", lastName);
+        userData.put("enabled", true); // Default to enabled
+        userData.put("emailVerified", true); // Default to not verified
+
+        // Credentials - password from request
         Map<String, Object> credentials = new HashMap<>();
         credentials.put("type", "password");
         credentials.put("value", request.getPassword());
-        credentials.put("temporary", request.isTemporaryPassword());
+        credentials.put("temporary", false); // Assuming password is not temporary
         userData.put("credentials", List.of(credentials));
 
         // Required actions
         List<String> requiredActions = new ArrayList<>();
-        if (!request.isEmailVerified()) {
-            requiredActions.add("VERIFY_EMAIL");
-        }
-        if (request.isTemporaryPassword()) {
-            requiredActions.add("UPDATE_PASSWORD");
-        }
+
+        // Always require email verification for new users
+        requiredActions.add("VERIFY_EMAIL");
+
+        // If you want to force password change on first login
+        // requiredActions.add("UPDATE_PASSWORD");
 
         if (!requiredActions.isEmpty()) {
             userData.put("requiredActions", requiredActions);
