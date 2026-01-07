@@ -289,6 +289,49 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
     }
 
 
+//    private Map<String, Object> buildUserData(CreateUserRequest request) {
+//        Map<String, Object> userData = new HashMap<>();
+//
+//        // Split fullName into firstName and lastName
+//        String fullName = request.getFullName();
+//        String firstName = "";
+//        String lastName = "";
+//
+//        if (fullName != null && !fullName.trim().isEmpty()) {
+//            String[] nameParts = fullName.trim().split("\\s+", 2);
+//            firstName = nameParts[0];
+//            lastName = nameParts.length > 1 ? nameParts[1] : "";
+//        }
+//
+//        // ✅ FIXED: Extract username from email (before @)
+//        String email = request.getEmail();
+//        String username = email.split("@")[0]; // Extract part before @
+//
+//        userData.put("username", username); // Use extracted username
+//        userData.put("email", email);
+//        userData.put("firstName", firstName);
+//        userData.put("lastName", lastName);
+//        userData.put("enabled", true);
+//        userData.put("emailVerified", false); // Should be false initially
+//
+//        // Credentials - password from request
+//        Map<String, Object> credentials = new HashMap<>();
+//        credentials.put("type", "password");
+//        credentials.put("value", request.getPassword());
+//        credentials.put("temporary", false);
+//        userData.put("credentials", List.of(credentials));
+//
+//        // Required actions
+//        List<String> requiredActions = new ArrayList<>();
+//        requiredActions.add("VERIFY_EMAIL");
+//
+//        if (!requiredActions.isEmpty()) {
+//            userData.put("requiredActions", requiredActions);
+//        }
+//
+//        return userData;
+//    }
+
     private Map<String, Object> buildUserData(CreateUserRequest request) {
         Map<String, Object> userData = new HashMap<>();
 
@@ -312,7 +355,10 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
         userData.put("firstName", firstName);
         userData.put("lastName", lastName);
         userData.put("enabled", true);
-        userData.put("emailVerified", false); // Should be false initially
+
+        // ✅ FIXED: Set emailVerified based on your requirement
+        boolean skipEmailVerification = true; // Change this based on your business logic
+        userData.put("emailVerified", skipEmailVerification); // true to skip verification
 
         // Credentials - password from request
         Map<String, Object> credentials = new HashMap<>();
@@ -321,13 +367,14 @@ public class KeycloakAdminServiceImpl implements KeycloakAdminService {
         credentials.put("temporary", false);
         userData.put("credentials", List.of(credentials));
 
-        // Required actions
-        List<String> requiredActions = new ArrayList<>();
-        requiredActions.add("VERIFY_EMAIL");
-
-        if (!requiredActions.isEmpty()) {
+        // ✅ FIXED: Only add VERIFY_EMAIL if email is NOT verified
+        if (!skipEmailVerification) {
+            List<String> requiredActions = new ArrayList<>();
+            requiredActions.add("VERIFY_EMAIL");
             userData.put("requiredActions", requiredActions);
         }
+        // If skipEmailVerification is true, don't set requiredActions at all
+        // or set to empty list
 
         return userData;
     }

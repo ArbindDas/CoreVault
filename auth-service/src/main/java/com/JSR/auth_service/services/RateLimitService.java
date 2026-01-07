@@ -32,7 +32,7 @@ public class RateLimitService {
                 limit = Bandwidth.classic(5, Refill.intervally(5, Duration.ofHours(1)));
                 break;
             case "login":
-                limit = Bandwidth.classic(10, Refill.intervally(10, Duration.ofMinutes(30)));
+                limit = Bandwidth.classic(10, Refill.intervally(10, Duration.ofMinutes(1)));
                 break;
             case "forgot-password":
                 limit = Bandwidth.classic(3, Refill.intervally(3, Duration.ofHours(1)));
