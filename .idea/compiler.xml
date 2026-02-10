@@ -16,9 +16,19 @@
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar" />
         </processorPath>
         <module name="auth-service" />
+      </profile>
+      <profile name="Annotation profile for newarrivals" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar" />
+        </processorPath>
         <module name="user-management-service" />
+        <module name="newarrivals" />
         <module name="user-service" />
       </profile>
     </annotationProcessing>
@@ -31,6 +41,7 @@
       <module name="Apigateway" options="-parameters" />
       <module name="api-gateway" options="-parameters" />
       <module name="auth-service" options="-parameters" />
+      <module name="newarrivals" options="-parameters" />
       <module name="service-registry" options="-parameters" />
       <module name="user-management-service" options="-parameters" />
       <module name="user-service" options="-parameters" />

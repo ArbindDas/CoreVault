@@ -12,6 +12,8 @@
         <option value="$PROJECT_DIR$/api-gateway/pom.xml" />
         <option value="$PROJECT_DIR$/../user-management-service/pom.xml" />
         <option value="$PROJECT_DIR$/user-management-service/pom.xml" />
+        <option value="$USER_HOME$/Downloads/newarrivals/pom.xml" />
+        <option value="$PROJECT_DIR$/newarrivals/pom.xml" />
       </list>
     </option>
   </component>

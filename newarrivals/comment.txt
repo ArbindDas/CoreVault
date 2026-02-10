@@ -1,0 +1,22 @@
+
+//
+//    @ElementCollection
+//    @CollectionTable(
+//            name = "product_images",
+//            joinColumns = @JoinColumn(
+//                    name = "product_id"
+//            )
+//    )
+//    @Column(name = "image_urls")
+//    private List<String>imageUrls;
+
+
+//    @ElementCollection
+//    @CollectionTable(
+//            name = "product_s3_keys",
+//            joinColumns = @JoinColumn(
+//                    name = "product_id"
+//            )
+//    )
+//    @Column(name = "s3_image_key")
+//    private List<String>s3ImageKeys;
